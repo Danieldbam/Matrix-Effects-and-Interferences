@@ -1612,7 +1612,7 @@ print(contaminent_blanks)
 
 # Create subfolder "PCI ME Figures" inside it
 output_dir <- here("Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+
 
 # Save PNG
 ggsave(
@@ -1642,15 +1642,11 @@ ggsave(
 ### Date and Plot:
 
 ```{r}
-filepath <- "C:/Users/DanielMalheiro/Clinical Microbiomics/Teamwebsted - MS-Omics Team Folder/Daniel/PhD/Experiments/Exp7-PCI with Samples"
-setwd(filepath)
-getwd()
-list.files
-file1 <- "LC_Final results_ver12-Exp7-PCI.xlsx"
-data3<- read_excel(file1, sheet = "Meta")
 
+peaks <- here("Data","Supplimentary Information_Excel_Files.xlsx")
+data3<- read_excel(peaks, sheet = "Peaks")
 
-peak_table2 <- data1 %>%
+peak_table1 <- data3 %>%
   dplyr::rename(peak_id = "Compound #") %>% 
   select(peak_id, "m/z", rt) %>%  
   mutate(
@@ -1663,11 +1659,11 @@ peak_table2 <- data1 %>%
   arrange(rt, mz) 
   
 # Define the output file path
-output_file <- "annotated_peak_table_UT.csv"
+output_file <- here("Data","annotated_peak_table_UT.csv")
 
 # Function to run detectHomologues and save results
 run_detect_homologues <- function(file) {
-  detectHomologues(peak_table2, mz_min = 10, mz_max = 400, 
+  detectHomologues(peak_table1, mz_min = 10, mz_max = 400, 
                    rt_min = 1, rt_max = 900, 
                    ppm_tolerance = 5, 
                    min_series_length = 4,
@@ -1752,45 +1748,6 @@ getPalette <- colorRampPalette(brewer.pal(min(9, max(3, colourCount)), "Set1")) 
 homologue_levels <- levels(merged_df$homologue_id)  # Ensure levels match
 color_map <- setNames(getPalette(colourCount), homologue_levels)
 
-# Create ggplot
-g2 <- ggplot(merged_df, aes(x = rt, y = mz, group = homologue_id)) +
-  
-  # Scatter points with custom aesthetics
-  geom_point(aes(color = homologue_id, 
-                 size = homologue_id,
-                 shape = homologue_id,
-                 alpha = homologue_id)) +
-
-  # Line connections for homologous peaks
-  geom_line(data = filter(merged_df, homologue_id != 0),
-            aes(group = homologue_id), alpha = 0.4, size = 0.1) +
-  # Manual aesthetic scales (mapping factors to colors)
-  scale_colour_manual(values = color_map) +
-  scale_alpha_manual(values = setNames(rep(0.85, colourCount), homologue_levels)) +
-  scale_size_manual(values = setNames(rep(1.5, colourCount), homologue_levels)) +
-  scale_shape_manual(values = setNames(rep(19, colourCount), homologue_levels)) +
-
-  # Labels & theme adjustments
-  xlab("Retention Time (min)") +
-  ylab("Mass to Charge Ratio") +
-  theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "bottom",
-    panel.grid = element_blank(),
-    axis.line = element_line(color = "black"),
-    axis.ticks = element_line(color = "black"),
-    axis.title.x = element_text(face = "bold"),
-    axis.title.y = element_text(face = "bold"),
-    strip.text = element_text(size = 14, face = "bold")
-  )
-
-# Display the plot
-print(g2)
-```
-
-### Data and Plot: Based on molecular formula
-
-```{r}
 # Prepare data
 merged_df <- merged_df %>%
   filter(!is.na(molecular_formula)) %>%
@@ -1849,19 +1806,13 @@ g2tax <- ggplot(merged_df, aes(x = rt, y = mz, group = homologue_id)) +
    )
 
 print(g2tax)
-
-
 ```
 
 ### Article figure 6.
 
 ```{r}
 # Define base file path
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-
-# Create subfolder "PCI ME Figures" inside it
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+output_dir <- here("Figures")
 
 # Save PNG
 ggsave(
