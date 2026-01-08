@@ -1642,9 +1642,8 @@ ggsave(
 ### Date and Plot:
 
 ```{r}
-
-peaks <- here("Data","Supplimentary Information_Excel_Files.xlsx")
-data3<- read_excel(peaks, sheet = "Peaks")
+Sup_info <- here("Data","Supplimentary Information_Excel_Files.xlsx")
+data3<- read_excel(Sup_info, sheet = "Annotations")
 
 peak_table1 <- data3 %>%
   dplyr::rename(peak_id = "Compound #") %>% 
@@ -1697,13 +1696,6 @@ annotated_peak_table_UT_Min <- annotated_peak_table_UT %>%
 sdb <- sdbCreate(annotated_peak_table_UT_Min)
 summary_sdb <- sdbSummarize(sdb)
 
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-setwd(filepath)
-file <- "PCI-peaksforR.xlsx" 
-data <- read_excel(file)
-data_meta <- read_excel(file, sheet = 2) %>%
-  dplyr::rename(rt = `RT [min]`)
-
 # Fuzzy join with closest rt match (within 0.1 range)
 merged_df <- difference_left_join(
   annotated_peak_table_UT_Min %>%
@@ -1711,14 +1703,17 @@ merged_df <- difference_left_join(
    left_join(summary_sdb,
   by = "homologue_id") %>%
   arrange(homologue_id), 
-  data_meta %>%
+  data3 %>% 
+    dplyr::rename( mz = "m/z") %>%
     mutate(
       mz = round(mz, 4),  
       rt = round(rt, 2)   
     ) %>%
     select(
       mz, rt, Formula, "Annotation level", Name, Adduct,
-      Polarity, Identifier, "Compound #", SMILES, CSID, "InChI Key"
+      Polarity,
+      #Identifier,
+      "Compound #", SMILES, CSID, "InChI Key"
     ),
   by = c("mz", "rt"),  # Match `mz` exactly and `rt` approximately
   max_dist = 0.011  ) %>%
@@ -1843,12 +1838,27 @@ ggsave(
 
 ```{r}
 
-# InChI_Keys <- merged_df %>%
-#   pull(`InChI Key`) %>%
-#   as.list()
-# 
-# #Classification
-# on_List <- purrr::map(InChI_Keys, get_classification)
+# Path to cached classification file
+largelist_path <- here("Data", "largelist.rds")
+
+if (file.exists(largelist_path)) {
+
+  # Load cached results
+  classification_list <- readRDS(largelist_path)
+
+} else {
+
+  # Extract InChI Keys
+  InChI_Keys <- merged_df %>%
+    pull(`InChI Key`) %>%
+    as.list()
+
+  # Run classification (expensive step)
+  classification_list <- purrr::map(InChI_Keys, get_classification)
+
+  # Save results for future runs
+  saveRDS(classification_list, largelist_path)
+}
 
 classification_list <- readRDS("~/R scripts/largelist.rds")
 
@@ -1967,28 +1977,21 @@ print(head(final_df))
 
 ```{r}
 
-
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-setwd(filepath)
-file <- "PCI-peaksforR.xlsx" 
-data <- read_excel(file)
-data_meta <- read_excel(file, sheet = 2) %>%
-  dplyr::rename(rt = `RT [min]`)
+Sup_info <- here("Data","Supplimentary Information_Excel_Files.xlsx")
+data4<- read_excel(Sup_info, sheet = "Peak Areas")
 
 # Step 1: Extract "Compound #", homologue_id, and molecular_formula from merged_df
 compound_info <- merged_df %>%
   select(`Compound #`, homologue_id, molecular_formula, mz) %>%
-  #filter(!(homologue_id %in% c(3, 6))) %>% #removed those with both POS and NEG in their homologue_id
-  #mutate(rt = round(rt, 2)) %>%
   unique() %>%
   na.omit()  # Remove NA values
 
 # Step 2: Select the first 5 columns in data
-first_five_cols <- data %>% select(1:5)
+first_five_cols <- data4 %>% select(1:5)
 
 # Step 3: Select only columns in data that match the Compound # list
-selected_compound_cols <- data %>%
-  select(all_of(intersect(names(data), compound_info$`Compound #`)))
+selected_compound_cols <- data4 %>%
+  select(all_of(intersect(names(data4), compound_info$`Compound #`)))
 
 # Step 4: Combine the first 5 columns with selected compound columns
 filtered_data <- bind_cols(first_five_cols, selected_compound_cols)
