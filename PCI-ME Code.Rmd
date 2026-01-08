@@ -3262,7 +3262,7 @@ ggsave(
 ### Data and plot
 
 ```{r}
-
+#Change and test directory
 # # Set the filepath to your directory
 # filepath <- "C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN"
 # setwd(filepath)
@@ -3322,12 +3322,10 @@ ggsave(
 #   extract_eic(file_name, target_mz, ppm)
 # })
 
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-setwd(filepath)
 
 # saveRDS(eic_list, file = "eic_list.rds")
 
-eic_list <- readRDS("eic_list.rds")
+eic_list <- readRDS(here("Data","eic_list.rds"))
 
 # Combine all EICs into a single data frame
 combined_eic_df <- bind_rows(eic_list)
@@ -3770,15 +3768,12 @@ print(combined_mef_plot)
 
 ```
 
-### Article figure 12:
+### Article figure 12
 
 ```{r}
-# Define base file path
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
 
-# Create subfolder "PCI ME Figures" inside it
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+#Save
+output_dir <- here("Figures")
 
 # Save PNG
 ggsave(
@@ -3809,123 +3804,120 @@ ggsave(
 
 ```{r}
 #import
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-setwd(filepath)
-getwd()
-list.files()
 file <- "Skyline-PCI-Exp7-241008.tsv" 
-data <- read_tsv(file)
-replacements <- c(
-  "Leucine d10" = "Leucine-d10" ,
-   "Glutamic acid-d5"= "GlutamicAcid-d5",
-   "DL-Tryptophan-d5" = "Tryptophan-d5",
-   "Stearic-d35 (18:0)" = "StearicAcid-d35",
-   "Cholic acid-d4" = "CholicAcid-d4")
+data <- read_tsv(here("Data",file))
 
-data1 <- data %>%
-  dplyr::rename(
-    Chromatograms = FileName,
-    Compound = PeptideModifiedSequence,
-    Adduct = PrecursorCharge,
-    Charge = ProductCharge
-  ) %>%
-  select(-IsotopeLabelType, -TotalArea, -FragmentIon) %>%
-  separate(
-    Chromatograms,
-    into = c(
-      "Date",
-      "Exp",
-      "PAN",
-      "Batch",
-      "Sequence",
-      "Wash",
-      "Sample",
-      "Dilution"),
-    sep = "-",
-    remove = FALSE
-  ) %>%
-  mutate(
-    Sample = str_remove(Sample, "\\.raw"),
-    Dilution = str_remove(Dilution,"\\.raw"),
-    Wash = str_remove(Wash,"\\.raw"),
-    Compound = replace(Compound, Compound == "#N/A", "TIC"),
-    Compound = recode(Compound, !!!replacements),  # Apply replacements
-    Sequence = as.numeric(Sequence),
-    Dilution = as.factor(Dilution)
-  ) %>%
-  select(-Batch,-Exp) %>%
-  arrange(Date) %>%
-  filter(#Sample %in% c("Process", "NIST"),
-         Adduct != "[M35H2-H]",
-        Adduct != "[M5H2+H]",
-        Compound != "Isoleucine-13C6",
-        Compound != "Arginine-13C6") %>%
-  group_by(Wash, Sample, Compound, Charge) %>%
-  mutate(Replicate = row_number()) %>%
- ungroup() %>%
-  select(1:5, Replicate, everything()) %>%
-  #filter(Replicate <= 3) %>%
-  mutate(Sample = ifelse(Wash == "NoFilter" & Sample == "Blank", "Reference", Sample)) %>%
-   filter(Compound != "TIC") 
-
-# Get unique washes to replicate Reference for each wash
-unique_washes <- unique(data1$Wash)
-print(unique_washes)
-
-# Add Reference sample for all washes except "NoFilter"
-data1 <- data1 %>%
-  bind_rows(
-    data1 %>%
-      filter(Sample == "Reference") %>%
-      select(-Wash) %>%  # Remove the existing Wash column
-      crossing(Wash = unique(data1$Wash[data1$Wash != "NoFilter"]))  # Add each wash except "NoFilter"
-  ) %>%
-filter(Wash != "NoFilter") %>%
-filter(Wash %in% c("NoFilter", "22x", "08x", "04x","NoWash","PPT")) %>%
-   mutate(
-    Sample = case_when(
-      Sample == "Reference" ~ "Solvent",
-      Sample == "Blank" ~ "Process",
-      TRUE ~ Sample))  
-
-unique_washes <- unique(data1$Wash) %>% print()
-unique_sample <- unique(data1$Sample) %>% print()
-
-data_intensity <- data1 %>%
-  select(Chromatograms, Compound, Intensities) %>%
-  separate_wider_delim(Intensities,
-                       delim = ";",
-                      names_sep = "",
-                      too_few = "align_start") %>%
-  mutate(across(3:ncol(.), ~ as.numeric(gsub(",", ".", .))))  
-  
-data_time <- data1 %>%
-  select(Chromatograms,Compound, Times) %>%
-  separate_wider_delim(Times,
-                       delim = ";",
-                       names_sep = "",
-                       too_few = "align_start") %>%
-  mutate(across(3:ncol(.), ~ as.numeric(gsub(",", ".", .))))
-combined_data <- data1 %>%
-  select(-Intensities,-Times) %>%
-  right_join(data_time, by = c("Chromatograms","Compound")) %>%
-  right_join(data_intensity, by = c("Chromatograms","Compound"))
-
-long_data_NTC <- combined_data %>%
-  pivot_longer(
-    cols = c(starts_with("Times"), starts_with("Intensities")),
-    names_to = c(".value", "Scan"),
-    names_pattern = "(Times|Intensities)(\\d+)") %>%
-  mutate(
-    Scan = as.numeric(Scan),
-    Intensities = if_else(Intensities == 0, 1, Intensities)  
-  ) %>%
-  filter(Times >= 0, Times <= 15) %>%
-  mutate(Average = rollmean(Intensities, k = 9, fill = NA, align = "left"),
-         Average2 = rollmean(Intensities, k = 3, fill = NA, align = "left"))
+# replacements <- c(
+#   "Leucine d10" = "Leucine-d10" ,
+#    "Glutamic acid-d5"= "GlutamicAcid-d5",
+#    "DL-Tryptophan-d5" = "Tryptophan-d5",
+#    "Stearic-d35 (18:0)" = "StearicAcid-d35",
+#    "Cholic acid-d4" = "CholicAcid-d4")
+# 
+# data1 <- data %>%
+#   dplyr::rename(
+#     Chromatograms = FileName,
+#     Compound = PeptideModifiedSequence,
+#     Adduct = PrecursorCharge,
+#     Charge = ProductCharge
+#   ) %>%
+#   select(-IsotopeLabelType, -TotalArea, -FragmentIon) %>%
+#   separate(
+#     Chromatograms,
+#     into = c(
+#       "Date",
+#       "Exp",
+#       "PAN",
+#       "Batch",
+#       "Sequence",
+#       "Wash",
+#       "Sample",
+#       "Dilution"),
+#     sep = "-",
+#     remove = FALSE
+#   ) %>%
+#   mutate(
+#     Sample = str_remove(Sample, "\\.raw"),
+#     Dilution = str_remove(Dilution,"\\.raw"),
+#     Wash = str_remove(Wash,"\\.raw"),
+#     Compound = replace(Compound, Compound == "#N/A", "TIC"),
+#     Compound = recode(Compound, !!!replacements),  # Apply replacements
+#     Sequence = as.numeric(Sequence),
+#     Dilution = as.factor(Dilution)
+#   ) %>%
+#   select(-Batch,-Exp) %>%
+#   arrange(Date) %>%
+#   filter(#Sample %in% c("Process", "NIST"),
+#          Adduct != "[M35H2-H]",
+#         Adduct != "[M5H2+H]",
+#         Compound != "Isoleucine-13C6",
+#         Compound != "Arginine-13C6") %>%
+#   group_by(Wash, Sample, Compound, Charge) %>%
+#   mutate(Replicate = row_number()) %>%
+#  ungroup() %>%
+#   select(1:5, Replicate, everything()) %>%
+#   #filter(Replicate <= 3) %>%
+#   mutate(Sample = ifelse(Wash == "NoFilter" & Sample == "Blank", "Reference", Sample)) %>%
+#    filter(Compound != "TIC") 
+# 
+# # Get unique washes to replicate Reference for each wash
+# unique_washes <- unique(data1$Wash)
+# print(unique_washes)
+# 
+# # Add Reference sample for all washes except "NoFilter"
+# data1 <- data1 %>%
+#   bind_rows(
+#     data1 %>%
+#       filter(Sample == "Reference") %>%
+#       select(-Wash) %>%  # Remove the existing Wash column
+#       crossing(Wash = unique(data1$Wash[data1$Wash != "NoFilter"]))  # Add each wash except "NoFilter"
+#   ) %>%
+# filter(Wash != "NoFilter") %>%
+# filter(Wash %in% c("NoFilter", "22x", "08x", "04x","NoWash","PPT")) %>%
+#    mutate(
+#     Sample = case_when(
+#       Sample == "Reference" ~ "Solvent",
+#       Sample == "Blank" ~ "Process",
+#       TRUE ~ Sample))  
+# 
+# unique_washes <- unique(data1$Wash) %>% print()
+# unique_sample <- unique(data1$Sample) %>% print()
+# 
+# data_intensity <- data1 %>%
+#   select(Chromatograms, Compound, Intensities) %>%
+#   separate_wider_delim(Intensities,
+#                        delim = ";",
+#                       names_sep = "",
+#                       too_few = "align_start") %>%
+#   mutate(across(3:ncol(.), ~ as.numeric(gsub(",", ".", .))))  
+#   
+# data_time <- data1 %>%
+#   select(Chromatograms,Compound, Times) %>%
+#   separate_wider_delim(Times,
+#                        delim = ";",
+#                        names_sep = "",
+#                        too_few = "align_start") %>%
+#   mutate(across(3:ncol(.), ~ as.numeric(gsub(",", ".", .))))
+# combined_data <- data1 %>%
+#   select(-Intensities,-Times) %>%
+#   right_join(data_time, by = c("Chromatograms","Compound")) %>%
+#   right_join(data_intensity, by = c("Chromatograms","Compound"))
+# 
+# long_data_NTC <- combined_data %>%
+#   pivot_longer(
+#     cols = c(starts_with("Times"), starts_with("Intensities")),
+#     names_to = c(".value", "Scan"),
+#     names_pattern = "(Times|Intensities)(\\d+)") %>%
+#   mutate(
+#     Scan = as.numeric(Scan),
+#     Intensities = if_else(Intensities == 0, 1, Intensities)  
+#   ) %>%
+#   filter(Times >= 0, Times <= 15) %>%
+#   mutate(Average = rollmean(Intensities, k = 9, fill = NA, align = "left"),
+#          Average2 = rollmean(Intensities, k = 3, fill = NA, align = "left"))
 
 # 1. Read file as raw table
-raw <- read_delim("testchromatograms2.txt",
+raw <- read_delim(here("Data", "Feature-Boundaries.txt"),
                   delim = "\t", col_names = TRUE, trim_ws = TRUE)
 
 raw2 <- raw %>% mutate(row_id = row_number())
@@ -4017,7 +4009,7 @@ RT_interval <- paired %>%
   dplyr::rename("Study File ID" = `Study File ID.compound`,
               )
   
-file.list <- read_excel("TestImportfiles.xlsx") %>%
+file.list <- read_excel(here("Data","Importfiles-CD.xlsx")) %>%
   select(1:2)  %>%
   mutate(
     file = tools::file_path_sans_ext(basename(`File Name`)))  %>%
