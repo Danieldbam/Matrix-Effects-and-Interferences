@@ -2168,11 +2168,7 @@ for (label in names(label_positions)) {
 
 ```{r}
 # Define base file path}
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-
-# Create subfolder "PCI ME Figures"
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+output_dir <- here("Figures")
 
 # ==== TIFF Export (Analytical Chemistry format) ====
 tiff(
@@ -2271,7 +2267,7 @@ dev.off()
 ### Data and plot MS 1
 
 ```{r}
-
+#Change dir
 filepath <- "C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN"
 setwd(filepath)
 getwd()
@@ -2546,11 +2542,7 @@ print(glu_ME_MS)
 
 ```{r}
 # Define base file path
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-
-# Create subfolder "PCI ME Figures" inside it
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+output_dir <- here("Figures")
 
 # Save PNG
 ggsave(
@@ -2709,11 +2701,7 @@ print(mass_simulation_plot)
 # ============================
 # 8. Save Output
 # ============================
-
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+output_dir <- here("Figures")
 
 # PNG
 ggsave(
@@ -2744,13 +2732,8 @@ ggsave(
 ### Data Loading
 
 ```{r}
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-setwd(filepath)
-getwd()
-list.files()
-
-file <- "Skyline-PCI-InfusionTest-Exp7-Gradient and Dilution.tsv" 
-data <- read_tsv(file)
+dilution_file <- "Skyline-PCI-InfusionTest-Exp7-Gradient and Dilution.tsv"  
+dilution_data <- read_tsv(here("Data", dilution_file))
 
 replacements <- c(
   "Leucine d10" = "Leucine-d10" ,
@@ -2759,7 +2742,7 @@ replacements <- c(
    "Stearic-d35 (18:0)" = "StearicAcid-d35",
    "Cholic acid-d4" = "CholicAcid-d4")
 
-data1 <- data %>%
+data5 <- dilution_data %>%
   dplyr::rename(
     Chromatograms = FileName,
     Compound = PeptideModifiedSequence,
@@ -2805,16 +2788,16 @@ data1 <- data %>%
    filter(Compound != "TIC") 
 
 # Get unique washes to replicate Reference for each wash
-unique_washes <- unique(data1$Wash)
+unique_washes <- unique(data5$Wash)
 print(unique_washes)
 
 # Add Reference sample for all washes except "NoFilter"
-data1 <- data1 %>%
+data5 <- data5 %>%
   bind_rows(
-    data1 %>%
+    data5 %>%
       filter(Sample == "Reference") %>%
       select(-Wash) %>%  # Remove the existing Wash column
-      crossing(Wash = unique(data1$Wash[data1$Wash != "NoFilter"]))  # Add each wash except "NoFilter"
+      crossing(Wash = unique(data5$Wash[data5$Wash != "NoFilter"]))  # Add each wash except "NoFilter"
   ) %>%
 filter(Wash != "NoFilter") %>%
 filter(Wash %in% c("NoFilter", "22x", "08x", "04x","NoWash","PPT")) %>%
@@ -2824,12 +2807,12 @@ filter(Wash %in% c("NoFilter", "22x", "08x", "04x","NoWash","PPT")) %>%
       Sample == "Blank" ~ "Process",
       TRUE ~ Sample))  
 
-unique_washes <- unique(data1$Wash) %>% print()
-unique_sample <- unique(data1$Sample) %>% print()
+unique_washes <- unique(data5$Wash) %>% print()
+unique_sample <- unique(data5$Sample) %>% print()
 
 
 
-data_intensity <- data1 %>%
+data_intensity <- data5 %>%
   select(Chromatograms, Compound, Intensities) %>%
   separate_wider_delim(Intensities,
                        delim = ";",
@@ -2838,7 +2821,7 @@ data_intensity <- data1 %>%
   mutate(across(3:ncol(.), ~ as.numeric(gsub(",", ".", .))))
 
   
-data_time <- data1 %>%
+data_time <- data5 %>%
   select(Chromatograms,Compound, Times) %>%
   separate_wider_delim(Times,
                        delim = ";",
@@ -2847,7 +2830,7 @@ data_time <- data1 %>%
   mutate(across(3:ncol(.), ~ as.numeric(gsub(",", ".", .))))
 
 
-combined_data <- data1 %>%
+combined_data <- data5 %>%
   select(-Intensities,-Times) %>%
   right_join(data_time, by = c("Chromatograms","Compound")) %>%
   right_join(data_intensity, by = c("Chromatograms","Compound"))
@@ -3129,11 +3112,8 @@ print(plot_ppt_nowash_dilution)
 
 ```{r}
 # Define base file path
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
+output_dir <- here("Figures")
 
-# Create subfolder "PCI ME Figures" inside it
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Save PNG
 ggsave(
