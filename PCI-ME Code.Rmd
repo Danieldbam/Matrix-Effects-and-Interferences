@@ -3143,13 +3143,10 @@ ggsave(
 ### Data + Plot
 
 ```{r}
-
-# Set working directory
-filepath <- "C:/Users/DanielMalheiro/Downloads/Exp7-Gradient and Dilution/mzML-Pan"
-setwd(filepath)
-
+#Change dir
 # Load saved spectra
-combined_spectra_loaded <- readRDS("combined_mass_spectra_241009_NoWash.rds")
+combined_spectra_loaded <- readRDS(here("Data","combined_mass_spectra_241009_NoWash.rds"))
+
 all_combined_spectra <- combined_spectra_loaded
 
 # Split filename into metadata columns
@@ -3234,12 +3231,8 @@ print(MS_dilution)
 ### Article figure 11:
 
 ```{r}
-# Define base file path
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-
-# Create subfolder "PCI ME Figures" inside it
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+# Save
+output_dir <- here("Figures")
 
 # Save PNG
 ggsave(
