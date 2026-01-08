@@ -62,17 +62,36 @@ setwd("C:/Users/DanielMalheiro/Clinical Microbiomics/Teamwebsted - MS-Omics Team
 ### Data extraction
 
 ```{r}
+# -------------------------------
+# File names (defined once)
+# -------------------------------
 PCI_data <- "Skyline-Exp04-KU-IS-PAN-PCI.tsv"
 Pump_pressure_data <- "240815-PAN-001-Blank-1uM-05ulmin-pump pressure.csv"
 
-data <- read_tsv(here("Data", PCI_data))
+# -------------------------------
+# Load PCI chromatogram data
+# -------------------------------
+# Reads Skyline export containing chromatogram intensities and times
+data <- read_tsv(
+  here("Data", PCI_data)
+)
 
+# -------------------------------
+# Load pump pressure data
+# -------------------------------
+# Reads pump pressure log; skip header metadata rows
 Pressure_data <- read_csv(
   here("Data", Pump_pressure_data),
   skip = 3
 )
 
-
+# -------------------------------
+# Prepare PCI data for analysis
+# -------------------------------
+# - Rename columns for clarity
+# - Parse chromatogram metadata from filenames
+# - Filter invalid / shutdown runs
+# - Calculate normalized and offset intensities
 data1 <- data %>%
   dplyr::rename(
     Chromatograms = FileName,
@@ -254,10 +273,13 @@ print(Figure.1)
 
 ### Article figure 1.
 
+\# define output directory inside repo
+
+output_dir \<- here("Figures")
+
 ```{r}
 
-# define output directory inside repo
-output_dir <- here("Figures")
+
 
 ggsave(
   filename = file.path(output_dir, "Figure_1.png"),
@@ -286,9 +308,8 @@ ggsave(
 ### Data: faster to extract TIC using mzR
 
 ```{r}
-# Set working directory
+# Set working directory #Change Dir
 filepath <- "C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN"
-setwd(filepath)
 
 # List all mzML files in the folder
 mzml_files <- list.files(path = filepath, pattern = "*.mzML", full.names = TRUE)
@@ -362,8 +383,7 @@ tic_df <- tic_df_all %>%
     Sample == "Blank" ~ "Process",
     TRUE ~ Sample
   )) %>%
-   mutate(Average = rollmean(intensity, k = 9, fill = NA, align = "left"),
-         Average2 = rollmean(intensity, k = 21, fill = NA, align = "left")) %>%
+   mutate(Average = rollmean(intensity, k = 9, fill = NA, align = "left")) %>%
    filter(between(rt, 0, 15))
 ```
 
@@ -516,9 +536,7 @@ print(Figure.2)
 # -----------------------------
 # Save output
 # -----------------------------
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+output_dir <- here("Figures")
 
 # Save PNG
 ggsave(
@@ -549,12 +567,8 @@ ggsave(
 ### Data extraction
 
 ```{r}
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-setwd(filepath)
-getwd()
-list.files()
 file <- "Skyline-PCI-Exp7-241008.tsv" 
-data <- read_tsv(file)
+data <- read_tsv(here("Data", file))
 replacements <- c(
   "Leucine d10" = "Leucine-d10" ,
    "Glutamic acid-d5"= "GlutamicAcid-d5",
@@ -562,7 +576,7 @@ replacements <- c(
    "Stearic-d35 (18:0)" = "StearicAcid-d35",
    "Cholic acid-d4" = "CholicAcid-d4")
 
-data1 <- data %>%
+data2 <- data %>%
   dplyr::rename(
     Chromatograms = FileName,
     Compound = PeptideModifiedSequence,
@@ -609,16 +623,16 @@ data1 <- data %>%
    filter(Compound != "TIC") 
 
 # Get unique washes to replicate Reference for each wash
-unique_washes <- unique(data1$Wash)
+unique_washes <- unique(data2$Wash)
 print(unique_washes)
 
 # Add Reference sample for all washes except "NoFilter"
-data1 <- data1 %>%
+data2 <- data2 %>%
   bind_rows(
-    data1 %>%
+    data2 %>%
       filter(Sample == "Reference") %>%
       select(-Wash) %>%  # Remove the existing Wash column
-      crossing(Wash = unique(data1$Wash[data1$Wash != "NoFilter"]))  # Add each wash except "NoFilter"
+      crossing(Wash = unique(data2$Wash[data2$Wash != "NoFilter"]))  # Add each wash except "NoFilter"
   ) %>%
 filter(Wash != "NoFilter") %>%
 filter(Wash %in% c("NoFilter", "22x", "08x", "04x","NoWash","PPT")) %>%
@@ -628,10 +642,10 @@ filter(Wash %in% c("NoFilter", "22x", "08x", "04x","NoWash","PPT")) %>%
       Sample == "Blank" ~ "Process",
       TRUE ~ Sample))  
 
-unique_washes <- unique(data1$Wash) %>% print()
-unique_sample <- unique(data1$Sample) %>% print()
+unique_washes <- unique(data2$Wash) %>% print()
+unique_sample <- unique(data2$Sample) %>% print()
 
-data_intensity <- data1 %>%
+data_intensity <- data2 %>%
   select(Chromatograms, Compound, Intensities) %>%
   separate_wider_delim(Intensities,
                        delim = ";",
@@ -639,17 +653,26 @@ data_intensity <- data1 %>%
                       too_few = "align_start") %>%
   mutate(across(3:ncol(.), ~ as.numeric(gsub(",", ".", .))))  
   
-data_time <- data1 %>%
+data_time <- data2 %>%
   select(Chromatograms,Compound, Times) %>%
   separate_wider_delim(Times,
                        delim = ";",
                        names_sep = "",
                        too_few = "align_start") %>%
   mutate(across(3:ncol(.), ~ as.numeric(gsub(",", ".", .))))
-combined_data <- data1 %>%
-  select(-Intensities,-Times) %>%
-  right_join(data_time, by = c("Chromatograms","Compound")) %>%
-  right_join(data_intensity, by = c("Chromatograms","Compound"))
+
+combined_data <- data2 %>%
+  select(-Intensities, -Times) %>%
+  right_join(
+    data_time,
+    by = c("Chromatograms", "Compound"),
+    relationship = "many-to-many"
+  ) %>%
+  right_join(
+    data_intensity,
+    by = c("Chromatograms", "Compound"),
+    relationship = "many-to-many"
+  )
 
 long_data <- combined_data %>%
   pivot_longer(
@@ -661,8 +684,7 @@ long_data <- combined_data %>%
     Intensities = if_else(Intensities == 0, 1, Intensities)  
   ) %>%
   filter(Times >= 0, Times <= 15) %>%
-  mutate(Average = rollmean(Intensities, k = 9, fill = NA, align = "left"),
-         Average2 = rollmean(Intensities, k = 3, fill = NA, align = "left"))
+  mutate(Average = rollmean(Intensities, k = 9, fill = NA, align = "left"))
 ```
 
 ### Plot: Carnitine and Leucine PPT vs NoWash
@@ -778,8 +800,7 @@ print(Figure.3)
 ```{r}
 
 # Save output
-output_dir <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts/PCI ME Figures"
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+output_dir <- here("Figures")
 
 # Save as PNG
 ggsave(
@@ -1396,11 +1417,7 @@ print(Combined_MEvsEIC)
 
 ```{r}
 # Define base file path
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-
-# Create subfolder "PCI ME Figures" inside it
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+output_dir <- here("Figures")
 
 # Save PNG
 ggsave(
@@ -1432,7 +1449,7 @@ ggsave(
 
 ```{r}
 
-# Set working directory
+# Set working directory #Change dir
 filepath <- "C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN"
 setwd(filepath)
 list.files()
@@ -1516,10 +1533,10 @@ print(massspec_ions)
 ### Data and Plot 2:
 
 ```{r}
-setwd("C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts")
+
 
 #load data, preextracted in SI-Figure 4.
-largelist_contaminants <- readRDS("eic_df_newions.rds")
+largelist_contaminants <- readRDS(here("Data", "eic_df_newions.rds"))
 
 summed_signals <- largelist_contaminants %>%
   group_by(file, rt) %>%
@@ -1591,11 +1608,10 @@ print(contaminent_blanks)
 ### Article figure 5.
 
 ```{r}
-# Define base file path
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
+
 
 # Create subfolder "PCI ME Figures" inside it
-output_dir <- file.path(filepath, "PCI ME Figures")
+output_dir <- here("Figures")
 dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Save PNG
@@ -1631,7 +1647,7 @@ setwd(filepath)
 getwd()
 list.files
 file1 <- "LC_Final results_ver12-Exp7-PCI.xlsx"
-data1<- read_excel(file1, sheet = "Meta")
+data3<- read_excel(file1, sheet = "Meta")
 
 
 peak_table2 <- data1 %>%
