@@ -1,58 +1,9 @@
 ---
-title: "Code for PCI-ME Figures"
-author: "Daniel"
-date: "2026-01-08"
-output: html_document
+title: "Publication Ready PCI ME Article"
+format: html
+editor: visual
 editor_options: 
-  markdown: 
-    wrap: 72
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-  echo = TRUE,
-  message = FALSE,
-  warning = FALSE,
-  fig.align = "center"
-)
-
-library(tidyverse)
-library(patchwork)
-```
-
-```{r global-theme}
-# -------------------------------------------------------------------------
-# Global plotting theme and colour palette
-# Applied consistently across all figures
-# Does NOT affect data or statistics
-# -------------------------------------------------------------------------
-
-theme_pci_me <- function(base_size = 11) {
-  theme_minimal(base_size = base_size) +
-    theme(
-      panel.grid.minor = element_blank(),
-      panel.grid.major.x = element_blank(),
-      axis.title = element_text(face = "bold"),
-      plot.title = element_text(face = "bold", hjust = 0),
-      plot.subtitle = element_text(size = rel(0.9)),
-      legend.title = element_text(face = "bold"),
-      legend.position = "right"
-    )
-}
-
-pci_me_palette <- c(
-  "Solvent" = "#4C72B0",
-  "NIST"    = "#55A868",
-  "Plasma"  = "#C44E52",
-  "Average" = "#8172B2"
-)
-```
-
----
-title: "Rmd-PCI-ME"
-author: "Daniel"
-date: "2026-01-06"
-output: html_document
+  chunk_output_type: console
 ---
 
 # Load libraries
@@ -95,6 +46,7 @@ library(rstatix)
 library(knitr)
 library(kableExtra)
 library(ggpubr)
+library(cowplot)
 ```
 
 ## Figure 1. Flowrate
@@ -518,7 +470,7 @@ Figure.2 <- tic_df %>%
   # Axis labels
   labs(
     x = "Retention Time (min)",
-    y = "Total Ion Current (offset for clarity)"
+    y = "Total Ion Current"
   ) +
   
   # Color scale (unchanged)
@@ -1536,7 +1488,7 @@ massspec_ions <- ggplot(scan787_data, aes(x = mz, y = intensity)) +
    expand = expansion(mult = c(0, 0.2))) +
     labs(
     #title = paste0("Mass Spectrum at Scan 747 (", round(xraw@scantime[scan_index], 1), " s)"),
-    x = "m/z",
+    x = "Mass to Charge Ratio",
     y = "Intensity"
   ) +
   theme_minimal(base_size = 14) +
@@ -1555,6 +1507,8 @@ print(massspec_ions)
 ### Data and Plot 2:
 
 ```{r}
+setwd("C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts")
+
 #load data, preextracted in SI-Figure 4.
 largelist_contaminants <- readRDS("eic_df_newions.rds")
 
@@ -2745,12 +2699,12 @@ mass_simulation_plot <- combined_simulation %>%
   geom_line(linewidth = 1) +
   facet_wrap(~Resolution) +
   scale_x_continuous(
-    name = "m/z",
+    name = "Mass to Charge Ratio",
     breaks = target_masses,
     labels = label_number(digits = 6)
   ) +
   labs(
-    x = "m/z",
+    x = "Mass to Charge Ratio",
     y = "Intensity",
     color = NULL
   ) +
@@ -2942,7 +2896,7 @@ long_data_dilu <- combined_data %>%
   distinct()
 ```
 
-### <Data:2>
+### Data:2
 
 ### PPT LeucineME
 
@@ -3037,7 +2991,7 @@ plot_ppt_dilution <- summary_ppt_dilution %>%
   title = bquote(atop("PPT treated", "Leucine-d"[10])),
   x = "Retention Time (min)",
   y = NULL) +
-  theme_minimal() +
+  theme_minimal(base_size = 14) +
    theme(
   legend.position = "none",
   strip.text.y = element_text(angle = 0),
@@ -3046,7 +3000,7 @@ plot_ppt_dilution <- summary_ppt_dilution %>%
   panel.grid.minor = element_blank(),
   axis.line = element_line(color = "black"),      # ← keep axis line
   axis.ticks = element_line(color = "black"),      # ← keep ticks
- plot.title = element_text(hjust = 0.5, size = 12) # center title
+ plot.title = element_text(hjust = 0.5, size = 14) # center title
   )
   
 # Show final plot
@@ -3157,10 +3111,10 @@ plot_nowash_dilution <- summary_nowash_plot %>%
   facet_grid(~Dilution ~Wash + Compound) +
   #coord_cartesian(ylim = c(global_min_y, global_max_y)) +
     labs( 
-      title = bquote(atop("PLR-filter plasma", "Glucose -"^{13}*"C"[6])),
+      title = bquote(atop("PLR unwashed plasma", "Glucose -"^{13}*"C"[6])),
    x = "Retention Time (min)",
   y = "Matrix Effect (%)") +
-  theme_minimal() +
+  theme_minimal(base_size = 14) +
  theme(
   legend.position = "none",
    strip.text = element_blank(),        
@@ -3170,7 +3124,7 @@ plot_nowash_dilution <- summary_nowash_plot %>%
   panel.grid.minor = element_blank(),
   axis.line = element_line(color = "black"),      # ← keep axis line
   axis.ticks = element_line(color = "black"),      # ← keep ticks
-   plot.title = element_text(hjust = 0.5, size = 12) # center title
+   plot.title = element_text(hjust = 0.5, size = 14) # center title
 )
   
 
@@ -3295,7 +3249,7 @@ MS_dilution <- all_combined_spectra %>%
   facet_grid(~Dilution ~ scan, scales = "free_x") +
   coord_cartesian(ylim = c(0, 2.3e6)) +
   scale_x_continuous(
-    name = "m/z",
+    name = "Mass to Charge Ratio",
     breaks = target_masses,
     labels = format(target_masses, digits = 7)
   ) +
@@ -6085,59 +6039,583 @@ ggsave(
   
 ```
 
-\`\`\`{r} library(readxl) library(writexl)
+```{r}
+library(readxl)
+library(writexl)
 
-write_files_to_excel \<- function(files, sheet_names = NULL, out_file =
-"combined_output.xlsx") {
-
-\# If sheet names not provided, use file names without extension if
-(is.null(sheet_names)) { sheet_names \<-
-tools::file_path_sans_ext(basename(files)) }
-
-\# Check sheet names length if (length(sheet_names) != length(files)) {
-stop("sheet_names must be the same length as files.") }
-
-df_list \<- list()
-
-for (i in seq_along(files)) { file \<- files[i] ext \<-
-tools::file_ext(file)
-
-```         
-# Detect Excel files
-if (ext %in% c("xlsx", "xls")) {
+write_files_to_excel <- function(files, sheet_names = NULL, out_file = "combined_output.xlsx") {
   
-  # Special rule:
-  if (basename(file) == "LC_Final results_ver12-Exp7-PCI.xlsx") {
-    df <- read_excel(file, sheet = "Meta")
-  } else {
-    df <- read_excel(file)
+  # If sheet names not provided, use file names without extension
+  if (is.null(sheet_names)) {
+    sheet_names <- tools::file_path_sans_ext(basename(files))
   }
   
-} else if (ext == "tsv") {
-  df <- read.delim(file)
-} else if (ext == "csv") {
-  df <- read.csv(file)
-} else {
-  stop(paste("Unsupported file type:", ext))
+  # Check sheet names length
+  if (length(sheet_names) != length(files)) {
+    stop("sheet_names must be the same length as files.")
+  }
+  
+  df_list <- list()
+  
+  for (i in seq_along(files)) {
+    file <- files[i]
+    ext <- tools::file_ext(file)
+    
+    # Detect Excel files
+    if (ext %in% c("xlsx", "xls")) {
+      
+      # Special rule:
+      if (basename(file) == "LC_Final results_ver12-Exp7-PCI.xlsx") {
+        df <- read_excel(file, sheet = "Meta")
+      } else {
+        df <- read_excel(file)
+      }
+      
+    } else if (ext == "tsv") {
+      df <- read.delim(file)
+    } else if (ext == "csv") {
+      df <- read.csv(file)
+    } else {
+      stop(paste("Unsupported file type:", ext))
+    }
+    
+    df_list[[sheet_names[i]]] <- df
+  }
+  
+  write_xlsx(df_list, out_file)
+  message("Excel file written: ", out_file)
 }
 
-df_list[[sheet_names[i]]] <- df
-```
+setwd("C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts")
 
-}
-
-write_xlsx(df_list, out_file) message("Excel file written: ", out_file)
-}
-
-setwd("C:/Users/DanielMalheiro/OneDrive - Clinical
-Microbiomics/Documents/R scripts")
-
-files \<- c( "merged_class_df.xlsx", "LC_Final
-results_ver12-Exp7-PCI.xlsx", "PCI-peaksforR.xlsx" )
+files <- c(
+  "merged_class_df.xlsx",
+  "LC_Final results_ver12-Exp7-PCI.xlsx",
+  "PCI-peaksforR.xlsx"
+  )
 
 # Optional custom sheet names
+sheet_names <- c("MetaResults", "Peaks","Homologue Series")
 
-sheet_names \<- c("MetaResults", "Peaks","Homologue Series")
+write_files_to_excel(files, sheet_names, out_file = "Supplimentary Information_Excel_Files.xlsx")
 
-write_files_to_excel(files, sheet_names, out_file = "Supplimentary
-Information_Excel_Files.xlsx")
+```
+
+## Graphical Abstract
+
+### Blank Selection
+
+```{r}
+
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+
+# -------------------------------
+# ---- PLOT B: Zoomed-In ME -----
+# -------------------------------
+
+# ---- FIRST PLOT (RED) ----
+Blank.selection.1 <- summary_table_1 %>%
+  filter(Comparison == "NIST / Solvent",
+         Wash == "Unwashed PLR",
+         between(avg_time, 0, 10)
+  ) %>%
+  ggplot(aes(x = avg_time, y = ME_NS_mean)) +
+  geom_line(size = 0.8, color = "#C03830") +   # RED LINE
+  facet_wrap(~ Wash) +
+  coord_cartesian(ylim = c(global_min_y, global_max_y)) +
+  labs(x = NULL, y = "Matrix Effect (%)") +
+  theme_void(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_blank(),
+    axis.title.x = element_blank(),
+    panel.grid = element_blank(),
+    axis.line = element_blank(),      # remove axis lines
+    axis.ticks = element_blank(),     # remove ticks
+    axis.text = element_blank()       # remove axis text
+  )
+
+
+# ---- SECOND PLOT (GREEN) ----
+Blank.selection.2 <- summary_table_2 %>%
+  filter(Comparison == "NIST / Solvent",
+         Wash == "Unwashed PLR",
+         between(avg_time, 0, 10)
+  ) %>%
+  ggplot(aes(x = avg_time, y = ME_NS_mean)) +
+  geom_line(size = 0.8, color = "#5AAA46") +   # GREEN LINE
+  facet_wrap(~ Wash) +
+  coord_cartesian(ylim = c(global_min_y, global_max_y)) +
+  labs(x = NULL, y = "Matrix Effect (%)") +
+  theme_void(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_blank(),
+    axis.title.x = element_blank(),
+    panel.grid = element_blank(),
+    axis.line = element_blank(),      # remove axis lines
+    axis.ticks = element_blank(),     # remove ticks
+    axis.text = element_blank()       # remove axis text
+  )
+
+
+# ---- COMBINE PLOTS ----
+Blank.correction <- Blank.selection.1 | Blank.selection.2
+
+Blank.correction
+
+
+# ---- EXPORT AS PNG ----
+ggsave(
+  filename = "Blank_correction.png",
+  plot = Blank.correction,
+  width = 8,
+  height = 4,
+  dpi = 600,
+  bg = "white"
+)
+
+```
+
+### Mass Resolution
+
+```{r}
+
+filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
+setwd(filepath)
+# ============================
+# 1. Constants
+# ============================
+
+mz1 <- 204.1173
+mz2 <- 204.1230
+int1 <- 2e6
+int2 <- 22174204
+
+resolutions <- c("60k" = 60000, "120k" = 120000)
+
+# Use SAME m/z values as the experimental data
+x_vals <- mass_spectrum_4$mz
+
+# ============================
+# 2. Gaussian Peak Function
+# ============================
+
+generate_gaussian <- function(mz_center, intensity, resolution) {
+  fwhm <- mz_center / resolution
+  sigma <- fwhm / 2.35482
+  intensity_vals <- intensity * exp(-(x_vals - mz_center)^2 / (2 * sigma^2))
+  return(intensity_vals)
+}
+
+# ============================
+# 3. Simulation Function
+# ============================
+
+simulate_resolution <- function(res_label, resolution) {
+  peak1 <- generate_gaussian(mz1, int1, resolution)
+  peak2 <- generate_gaussian(mz2, int2, resolution)
+  total <- peak1 + peak2
+  
+  data.frame(
+    mz = x_vals,
+    peak_204_1173 = peak1,
+    peak_204_1230 = peak2,
+    combined = total,
+    Resolution = res_label
+  )
+}
+
+# ============================
+# 4. Run Simulations
+# ============================
+
+sim_60k  <- simulate_resolution("60k",  resolutions["60k"])
+sim_120k <- simulate_resolution("120k", resolutions["120k"])
+
+# Combine and reshape simulated data
+sim_all <- bind_rows(sim_60k, sim_120k) %>%
+  pivot_longer(cols = c("peak_204_1173", "peak_204_1230", "combined"),
+               names_to = "Trace",
+               values_to = "Intensity")
+
+# ============================
+# 5. Prepare Experimental Data
+# ============================
+
+mass_spectrum_combine <- mass_spectrum_4 %>%
+  select(-scan) %>%
+  dplyr::rename(Intensity = intensity) %>%
+  mutate(
+    Trace = "Experimental",
+    Resolution = "Experimental"
+  )
+
+# ============================
+# 6. Final Combined Dataset
+# ============================
+
+combined_simulation <- bind_rows(sim_all, mass_spectrum_combine) %>% 
+  filter(!(Trace %in% c("peak_204_1230", "peak_204_1173"))) %>%
+  mutate(
+    Resolution = recode(Resolution,
+      "Experimental" = "Experimental Data",
+      "60k" = "60k Resolving Power",
+      "120k" = "120k Resolving Power"
+    ),
+    Resolution = factor(Resolution, 
+                        levels = c("Experimental Data", 
+                                   "60k Resolving Power", 
+                                   "120k Resolving Power"))
+  )
+
+# ============================
+# 7. Plot
+# ============================
+
+ # Plot
+mass_simulation_plot <- combined_simulation %>%
+  filter(Resolution != "60k Resolving Power") %>%   # remove 60k
+  ggplot(aes(x = mz, y = Intensity, color = Resolution)) +
+  #geom_vline(xintercept = target_masses, linetype = "dashed", color = "black") +
+  geom_line(linewidth = 1) +
+  facet_wrap(~Resolution) +
+  scale_x_continuous(
+    name = "m/z",
+    breaks = target_masses,
+    labels = scales::label_number(digits = 6)
+  ) +
+  
+  # ---- FIXED COLORS ----
+  scale_color_manual(
+    values = c(
+      "120k Resolving Power" = "#5AAA46",   # green
+      "Experimental Data"    = "#C03830"    # red
+    )
+  ) +
+  
+  labs(
+    x = "m/z",
+    y = "Intensity",
+    color = NULL
+  ) +
+  theme_void(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_blank(),
+    axis.title.x = element_blank(),
+    panel.grid = element_blank(),
+    axis.line = element_blank(),      # remove axis lines
+    axis.ticks = element_blank(),     # remove ticks
+    axis.text = element_blank()       # remove axis text
+  )
+
+print(mass_simulation_plot)
+
+
+
+# ---- EXPORT AS PNG ----
+ggsave(
+  filename = "mass_simulation_plot.png",
+  plot = mass_simulation_plot,
+  width = 8,
+  height = 4,
+  dpi = 600,
+  bg = "white"
+)
+```
+
+### Dilution
+
+```{r}
+# Define axis and zoom settings
+x_limits <- c(0, 14)
+zoom_limits <- c(0, 10)
+vline_positions <- c(0.79, 2.2)
+
+# Filter data
+filtered_data_dilu <- long_data_dilu %>%
+  filter(
+    between(Times, x_limits[1], x_limits[2]),
+    Compound == "Glucose-13C6",
+    Wash == "NoWash",
+    Sample != "Process"
+  ) %>%
+  mutate(Wash = factor(Wash, levels = c("22x", "08x", "NoWash", "PPT")))
+
+# Summarise per scan/sample
+summary_nowash_plot<- filtered_data_dilu %>%
+  filter(Sample %in% c("NIST", "Solvent"), Date == "241009") %>%
+  group_by(Compound, Scan, Wash, Sample, Dilution) %>%
+  summarise(
+    avg_time = mean(Times, na.rm = TRUE),
+    NIST_n = sum(!is.na(Average[Sample == "NIST"])),
+    NIST_mean = mean(Average[Sample == "NIST"], na.rm = TRUE),
+    NIST_se = sd(Average[Sample == "NIST"], na.rm = TRUE) / sqrt(NIST_n),
+    Solvent_n = sum(!is.na(Average[Sample == "Solvent"])),
+    Solvent_mean = mean(Average[Sample == "Solvent"], na.rm = TRUE),
+    Solvent_se = sd(Average[Sample == "Solvent"], na.rm = TRUE) / sqrt(Solvent_n),
+    .groups = "drop"
+  ) %>%
+  group_by(Compound, Scan, Wash) %>%
+  mutate(
+    Solvent_mean = dplyr::first(Solvent_mean[Sample == "Solvent" & !is.na(Solvent_mean)]),
+    Solvent_se = dplyr::first(Solvent_se[Sample == "Solvent" & !is.na(Solvent_se)]),
+    Solvent_n = dplyr::first(Solvent_n[Sample == "Solvent" & !is.na(Solvent_n)])
+  ) %>%
+  ungroup() %>%
+  filter(Sample != "Solvent") %>%
+  mutate(
+    ME_NS_mean = ((NIST_mean / Solvent_mean) * 100) - 100,
+    ME_NS_se = abs((NIST_mean / Solvent_mean) * 100) *
+      sqrt((NIST_se / NIST_mean)^2 + (Solvent_se / Solvent_mean)^2),
+    df = pmin(NIST_n, Solvent_n) - 1,
+    t_val = qt(0.975, df = df),
+    ME_NS_lower = ME_NS_mean - t_val * ME_NS_se,
+    ME_NS_upper = ME_NS_mean + t_val * ME_NS_se,
+    NIST_lower = NIST_mean - t_val * NIST_se,
+    NIST_upper = NIST_mean + t_val * NIST_se,
+    Solvent_lower = Solvent_mean - t_val * Solvent_se,
+    Solvent_upper = Solvent_mean + t_val * Solvent_se
+  )  %>%
+  mutate(
+    # Standard error of the difference
+    se_diff = sqrt(NIST_se^2 + Solvent_se^2),
+
+    # t-statistic for Welch's t-test
+    t_stat = (NIST_mean - Solvent_mean) / se_diff,
+
+    # Welch-Satterthwaite degrees of freedom
+    df_welch = (NIST_se^2 + Solvent_se^2)^2 /
+      ((NIST_se^4 / (NIST_n - 1)) + (Solvent_se^4 / (Solvent_n - 1))),
+
+    # two-sided p-value
+    p_value = 2 * pt(-abs(t_stat), df = df_welch)
+  ) %>%
+mutate(
+    Dilution = recode(as.character(Dilution),
+      "100" = "100%",
+      "050" = "50%",
+      "025" = "25%",
+      "010" = "10%"
+    ),
+    Dilution = factor(Dilution, levels = c("100%", "50%", "25%", "10%"))
+  )
+
+
+# ---- Define fixed colors and alpha per dilution ----
+summary_nowash_plot <- summary_nowash_plot %>%
+  mutate(
+    Dilution_color = case_when(
+      Dilution == "100%" ~ "#C03830",  # red
+      Dilution == "50%"  ~ "#C03830",  # same red
+      Dilution == "25%"  ~ "#5AAA46",  # same green
+      Dilution == "10%"  ~ "#5AAA46"   # green
+    ),
+    Dilution_alpha = case_when(
+      Dilution == "100%" ~ 1.0,
+      Dilution == "50%"  ~ 0.5,
+      Dilution == "25%"  ~ 0.5,
+      Dilution == "10%"  ~ 1.0
+    )
+  )
+
+# ---- FINAL PLOT ----
+plot_nowash_dilution <- summary_nowash_plot %>%
+  filter(between(avg_time, zoom_limits[1], zoom_limits[2])) %>%
+  ggplot(aes(
+    x = avg_time,
+    y = ME_NS_mean + as.numeric(Dilution) * 40,
+    group = Dilution
+  )) +
+  geom_line(aes(color = Dilution_color, alpha = Dilution_alpha),
+            size = 0.8, lineend = "round") +
+
+  scale_color_identity() +   # use colors as defined (no legend remapping)
+  scale_alpha_identity() +   # use alpha as defined
+
+  labs(
+    x = "Retention Time (min)",
+    y = "Matrix Effect (%)"
+  ) +
+  theme_void(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_blank(),
+    axis.title.x = element_blank(),
+    panel.grid = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text = element_blank()
+  )
+
+print(plot_nowash_dilution)
+
+# ---- EXPORT PNG ----
+ggsave(
+  filename = "Dilution.png",
+  plot = plot_nowash_dilution,
+  width = 8,
+  height = 4,
+  dpi = 600,
+  bg = "white"
+)
+```
+
+### MF Correction
+
+```{r}
+# Step 1: Filter for the closest `rt` to 4.84 within each group (Wash and Replicate)
+combined_eic_df_filtered2 <- combined_eic_df_filtered %>%
+  group_by(Wash, Replicate) %>%  
+ #filter(rt == rt[which.min(abs(rt - 4.85))]) %>%
+  filter(rt == rt[which.max(intensity)]) %>%
+  ungroup()  # Remove grouping after filtering
+
+# Step 2: Find the closest `rt`, `Times`, and `Scan` in `matrix_effect_data` for each `rt`
+combined_eic_df_filtered2 <- combined_eic_df_filtered2 %>%
+  mutate(
+    #closest_rt = purrr::map_dbl(rt, ~matrix_effect_data$Times[which.min(abs(matrix_effect_data$Times - .))]),
+    closest_time = purrr::map_dbl(rt, ~matrix_effect_data$Times[which.min(abs(matrix_effect_data$Times - .))]),
+    closest_scan = purrr::map_dbl(closest_time, ~matrix_effect_data$Scan[which.min(abs(matrix_effect_data$Times - .))]),
+    scan_diff = scan - closest_scan  # Calculate the difference of the scans
+  ) %>%
+  ungroup()  # Remove grouping after mutation
+
+# Step 3: Apply `scan_diff` to the original data and adjust the scan
+combined_eic_df_with_shift <- combined_eic_df_filtered %>%
+  left_join(
+    combined_eic_df_filtered2 %>% select(Wash, Replicate, scan_diff),
+    by = c("Wash", "Replicate")
+  ) %>%
+  mutate(
+    adjusted_scan = scan - scan_diff  # Apply the scan shift to get the adjusted scan
+  )
+
+# Step 4: Join `Matrix_Effect_Factor` (MEF) based on `adjusted_scan`
+combined_eic_df_with_shift <- combined_eic_df_with_shift %>%
+  left_join(
+    matrix_effect_data %>% select(Wash, Replicate, Scan, Matrix_Effect_Factor, Compound),
+    by = c("Wash", "Replicate", "adjusted_scan" = "Scan")
+  ) %>%
+  mutate(
+    corrected_intensity = intensity / Matrix_Effect_Factor,  # Calculate corrected intensity
+    Wash = factor(Wash, levels = c("22x", "08x", "04x", "NoWash", "PPT")),  # Ensure Wash is a factor with defined levels
+    Wash = recode(Wash,  # Rename Wash levels
+                  "22x" = "PLR 22x Wash",
+                  "08x" = "PLR 8x Wash",
+                  "04x" = "PLR 4x Wash",
+                  "NoWash" = "PLR Unwashed",
+                  "PPT" = "PPT"),
+    Compound_plot = recode(
+      Compound,
+      "Average"        = "Average",
+      "Tryptophan-d5"  = "Tryptophan-d[5]",
+      "Leucine-d10"    = "Leucine-d[10]",
+      "Glucose-13C6"   = "Glucose-{}^{13}*C[6]"
+    )
+  )
+
+# View the updated levels and names of the Wash factor
+levels(combined_eic_df_with_shift$Wash)
+
+# Step 5: Pivot the data to group `average_intensity` and `corrected_intensity`
+combined_eic_df_filtered_long <- combined_eic_df_with_shift %>%
+  pivot_longer(
+    cols = c(intensity, corrected_intensity),
+    names_to = "Intensity_Type", 
+    values_to = "Intensity_Value"
+  ) %>%
+  group_by(Wash, rt, Matrix_Effect_Factor, Sample, Replicate, Intensity_Type, Sequence, Compound, Compound_plot) %>%  # <-- Compound kept
+  summarise(Average_Intensity = mean(Intensity_Value, na.rm = TRUE), .groups = "drop") %>%
+  mutate(
+    Compound = factor(Compound, levels = c("Average", "Tryptophan-d5", "Leucine-d10", "Glucose-13C6"))  # Set the order of levels for Compound
+  )
+
+# Calculate scaling factor for Matrix Effect Factor (MEF) to fit on the secondary axis
+scaling_factor <- max(combined_eic_df_filtered_long$Average_Intensity, na.rm = TRUE)/ max(combined_eic_df_filtered_long$Matrix_Effect_Factor, na.rm = TRUE)
+
+# Step 7: Plot with alignment by rt and Times
+MF_correction <- combined_eic_df_filtered_long %>%
+  filter(
+    between(rt, 4.7, 5.1),
+    Wash == "PLR 4x Wash",
+    Compound == "Tryptophan-d5"
+  ) %>%
+  mutate(
+    Intensity_Type = recode(
+      Intensity_Type,
+      intensity = "Uncorrected Tryptophan Intensity",
+      corrected_intensity = "Corrected Tryptophan Intensity"
+    ),
+    Intensity_Type = factor(
+      Intensity_Type,
+      levels = c(
+        "Uncorrected Tryptophan Intensity",
+        "Corrected Tryptophan Intensity",
+        "Matrix Factor"
+      )
+    )
+  ) %>%
+  ggplot() +
+  
+  # --- EIC curves for Uncorrected & Corrected ---
+  geom_smooth(
+  aes(
+    x = rt,
+    y = Average_Intensity,
+    color = Intensity_Type,
+    group = interaction(Intensity_Type, Replicate)
+  ),
+  method = "loess",
+  span = 0.17,      # adjust smoothness (lower = more wiggly)
+  se = FALSE,
+  linewidth = 0.7
+) +
+  
+  # facet grid (optional)
+  facet_grid(~ Intensity_Type) +
+  
+  labs(
+    #title = "Overlayed Normalized EICs with Matrix Effect Factor",
+    x = "Retention Time (min)",
+    y = "Intensity",
+    color = "Intensity Type"
+  ) +
+  
+  # --- FIXED COLORS ---
+  scale_color_manual(
+    values = c(
+      "Uncorrected Tryptophan Intensity" = "#C03830",  # RED
+      "Corrected Tryptophan Intensity"   = "#5AAA46",  # GREEN
+      "Matrix Factor"                    = "red"       # keep or remove
+    )
+  ) +
+  
+  theme_void(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_blank(),
+    axis.title.x = element_blank(),
+    panel.grid = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text = element_blank()
+  )
+
+print(MF_correction)
+
+
+# ---- EXPORT PNG ----
+ggsave(
+  filename = "MF_correction.png",
+  plot = MF_correction,
+  width = 8,
+  height = 4,
+  dpi = 600,
+  bg = "white"
+)
+
+```
