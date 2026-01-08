@@ -47,6 +47,14 @@ library(knitr)
 library(kableExtra)
 library(ggpubr)
 library(cowplot)
+library(here)
+```
+
+original filepath
+
+```{r}
+setwd("C:/Users/DanielMalheiro/Clinical Microbiomics/Teamwebsted - MS-Omics Team Folder/Daniel/PhD/Manuscript/Github/Matrix-Effects-and-Interferences")
+
 ```
 
 ## Figure 1. Flowrate
@@ -54,12 +62,16 @@ library(cowplot)
 ### Data extraction
 
 ```{r}
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-setwd(filepath)
-getwd()
-filename <- "Skyline-Exp04-PAN-PCI-List-Chromatograms and TIC.tsv"
-file <- "Skyline-Exp04-KU-IS-PAN-PCI.tsv"
-data <- read_tsv(file)
+PCI_data <- "Skyline-Exp04-KU-IS-PAN-PCI.tsv"
+Pump_pressure_data <- "240815-PAN-001-Blank-1uM-05ulmin-pump pressure.csv"
+
+data <- read_tsv(here("Data", PCI_data))
+
+Pressure_data <- read_csv(
+  here("Data", Pump_pressure_data),
+  skip = 3
+)
+
 
 data1 <- data %>%
   dplyr::rename(
@@ -120,10 +132,9 @@ long_data <- combined_data %>%
     names_to = c(".value", "pair"),
     names_pattern = "(Times|Intensities)(\\d+)")
 
-Pressure_data <- read_csv("240815-PAN-001-Blank-1uM-05ulmin-pump pressure.csv", skip = 3)
-
 Pressure_data <- Pressure_data %>%
   dplyr::rename( "Time" = "Time(min)", "Pressure" = "ElutingPump_Pressure bar")
+
 ```
 
 ### Plot: Effect of PCI programmed flow rates
@@ -245,11 +256,9 @@ print(Figure.1)
 
 ```{r}
 
-# ---- Save Figure.1 as PNG and TIFF ----
-output_dir <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts/PCI ME Figures"
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+# define output directory inside repo
+output_dir <- here("Figures")
 
-# Save as PNG
 ggsave(
   filename = file.path(output_dir, "Figure_1.png"),
   plot = Figure.1,
@@ -259,7 +268,6 @@ ggsave(
   dpi = 600
 )
 
-# Save as TIFF
 ggsave(
   filename = file.path(output_dir, "Figure_1.tiff"),
   plot = Figure.1,
@@ -270,6 +278,7 @@ ggsave(
   device = "tiff",
   compression = "lzw"
 )
+
 ```
 
 ## Figure 2. Effect of PLR
