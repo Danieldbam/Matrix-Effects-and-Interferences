@@ -3807,6 +3807,7 @@ ggsave(
 file <- "Skyline-PCI-Exp7-241008.tsv" 
 data <- read_tsv(here("Data",file))
 
+#### This should have been prviously load in from Figure 3, or else uncomment it
 # replacements <- c(
 #   "Leucine d10" = "Leucine-d10" ,
 #    "Glutamic acid-d5"= "GlutamicAcid-d5",
@@ -3913,8 +3914,7 @@ data <- read_tsv(here("Data",file))
 #     Intensities = if_else(Intensities == 0, 1, Intensities)  
 #   ) %>%
 #   filter(Times >= 0, Times <= 15) %>%
-#   mutate(Average = rollmean(Intensities, k = 9, fill = NA, align = "left"),
-#          Average2 = rollmean(Intensities, k = 3, fill = NA, align = "left"))
+#   mutate(Average = rollmean(Intensities, k = 9, fill = NA, align = "left"))
 
 # 1. Read file as raw table
 raw <- read_delim(here("Data", "Feature-Boundaries.txt"),
@@ -4253,12 +4253,13 @@ build_Tryp_MEF <- function(mz, rt) {
 }
 
 # ------------ Auto-load or compute ------------
-if (file.exists("all_result.rds")) {
+if (file.exists(here("Data", "all_result.rds"))) {
   
   message("▶ Loading saved all_result.rds...")
-  all_result <- readRDS("all_result.rds")
+  all_result <- readRDS(here("Data", "all_result.rds"))
   
 } else {
+
   
   message("▶ No saved file found — running full analysis...")
 
@@ -4303,7 +4304,7 @@ if (file.exists("all_result.rds")) {
     ungroup()
   
   # Save for next time
-  saveRDS(all_result, "all_result.rds")
+  saveRDS(all_result,here("Data", "all_result.rds"))
   message("✔ Saved results to all_result.rds")
 }
 
@@ -4801,12 +4802,8 @@ region_counts
 ### Article figure 13.
 
 ```{r}
-# 9️⃣ Save histogam
-# ============================================================
-
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+#Save
+output_dir <- here("Figures")
 
 ggsave(
   file.path(output_dir, "Figure_13.png"),
@@ -4909,7 +4906,11 @@ plot.tryp.test.rsd
 
 # Supplementary Tables and Figures
 
-## Tables SI-1
+Table SI-1
+
+Table SI-2
+
+## Tables SI-3
 
 manually made
 
@@ -4930,13 +4931,13 @@ literature_table <- tribble(
 kable(
   literature_table,
   format = "html",
-  caption = "Table SI-1. Overview of different flowrates, analytes and analyte concentrations used for PCI experiments in literature."
+  caption = "Table SI-3. Overview of different flowrates, analytes and analyte concentrations used for PCI experiments in literature."
 ) %>%
   kable_styling(full_width = FALSE)
 
 ```
 
-## Tables SI-2
+## Tables SI-4
 
 ```{r}
 #---------------------------------------------
@@ -4981,7 +4982,7 @@ wash_means_pub <- wash_subset %>%
 
 kable(
   wash_means_pub,
-  caption = "Table SI-2. Contaminant intensity across PLR wash conditions. Values shown as mean and standard deviation for each homologue series ID.",
+  caption = "Table SI-4. Contaminant intensity across PLR wash conditions. Values shown as mean and standard deviation for each homologue series ID.",
   col.names = c("Homologue ID", "Wash Condition", "Sample Count (n)", "Mean Intensity", "SD Intensity"),
   align = "c",
   booktabs = TRUE,
@@ -5038,12 +5039,30 @@ solvent_leucine <- long_data %>%
   )
 
 print(solvent_leucine)
+
+# Save
+#---------------------------------------------
+output_dir <- here("Figures")
+
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-1 Article.png"),
+  plot = solvent_leucine,
+  width = 20, height = 20, units = "cm", dpi = 600
+)
+
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-1 Article.tiff"),
+  plot = solvent_leucine,
+  width = 20, height = 20, units = "cm",
+  dpi = 600, device = "tiff", compression = "lzw"
+)
+
 ```
 
 ## Figure SI-2: MS of contamiants as image
 
 ```{r}
-
+## Screenshot from FreeStyle
 ```
 
 ## Figure SI-3:
@@ -5175,19 +5194,17 @@ print(allinter)
 #---------------------------------------------
 # Save
 #---------------------------------------------
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
 
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+output_dir <- here("Figures")
 
 ggsave(
-  filename = file.path(output_dir, "Figure SI-3 Article.png"),
+  filename = file.path(output_dir, "Figure_SI-3 Article.png"),
   plot = allinter,
   width = 20, height = 20, units = "cm", dpi = 600
 )
 
 ggsave(
-  filename = file.path(output_dir, "Figure SI-3 Article.tiff"),
+  filename = file.path(output_dir, "Figure_SI-3 Article.tiff"),
   plot = allinter,
   width = 20, height = 20, units = "cm",
   dpi = 600, device = "tiff", compression = "lzw"
@@ -5317,19 +5334,16 @@ box_sig_plot
 #---------------------------------------------
 # Save
 #---------------------------------------------
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+output_dir <- here("Figures")
 
 ggsave(
-  filename = file.path(output_dir, "Figure SI-4 Article.png"),
+  filename = file.path(output_dir, "Figure_SI-4 Article.png"),
   plot = box_sig_plot,
   width = 20, height = 20, units = "cm", dpi = 600
 )
 
 ggsave(
-  filename = file.path(output_dir, "Figure SI-4 Article.tiff"),
+  filename = file.path(output_dir, "Figure_SI-4 Article.tiff"),
   plot = box_sig_plot,
   width = 20, height = 20, units = "cm",
   dpi = 600, device = "tiff", compression = "lzw"
@@ -5421,16 +5435,12 @@ pub_ready_plot <- plot_matrix_effect_zoom_22xonly / nist_22x_rep
 # ---- Display ----
 print(pub_ready_plot)
 
-# Define base file path
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-
-# Create subfolder "PCI ME Figures" inside it
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+# Save
+output_dir <- here("Figures")
 
 # Save PNG
 ggsave(
-  filename = file.path(output_dir, "Figure SI-5 Article.png"),
+  filename = file.path(output_dir, "Figure_SI-5 Article.png"),
   plot = pub_ready_plot,
   width = 20,
   height = 10,
@@ -5440,7 +5450,7 @@ ggsave(
 
 # Save TIFF
 ggsave(
-  filename = file.path(output_dir, "Figure SI-5 Article.tiff"),
+  filename = file.path(output_dir, "Figure_SI-5 Article.tiff"),
   plot = pub_ready_plot,
   width = 20,
   height = 10,
@@ -5457,6 +5467,7 @@ ggsave(
 ### 2data
 
 ```{r}
+#Change dir
 filepath <- "C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN"
 setwd(filepath)
 getwd()
@@ -5520,16 +5531,13 @@ Ioninjection_plot <- scan_df %>%
 # Print the plot
 print(Ioninjection_plot)
 
-# Define base file path
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
+# Save
+output_dir <- here("Figures")
 
-# Create subfolder "PCI ME Figures" inside it
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Save PNG
 ggsave(
-  filename = file.path(output_dir, "Figure SI-6 Article.png"),
+  filename = file.path(output_dir, "Figure_SI-6 Article.png"),
   plot = Ioninjection_plot,
   width = 20,
   height = 10,
@@ -5539,7 +5547,7 @@ ggsave(
 
 # Save TIFF
 ggsave(
-  filename = file.path(output_dir, "Figure SI-6 Article.tiff"),
+  filename = file.path(output_dir, "Figure_SI-6 Article.tiff"),
   plot = Ioninjection_plot,
   width = 20,
   height = 10,
@@ -5645,14 +5653,12 @@ chromatogram_overlay_scaled <- combined_eic_df_scaled %>%
 
 print(chromatogram_overlay_scaled)
 
-# Define base file path
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
+# Save
+output_dir <- here("Figures")
 
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
 ggsave(
-  filename = file.path(output_dir, "Figure SI-7 Article.png"),
+  filename = file.path(output_dir, "Figure_SI-7 Article.png"),
   plot = chromatogram_overlay_scaled,
   width = 20,
   height = 10,
@@ -5661,7 +5667,7 @@ ggsave(
 )
 
 ggsave(
-  filename = file.path(output_dir, "Figure SI-7 Article.tiff"),
+  filename = file.path(output_dir, "Figure_SI-7 Article.tiff"),
   plot = chromatogram_overlay_scaled,
   width = 20,
   height = 10,
@@ -5839,7 +5845,7 @@ dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Save PNG
 ggsave(
-  filename = file.path(output_dir, "Figure SI-8. Article.png"),
+  filename = file.path(output_dir, "Figure_SI-8. Article.png"),
   plot = plot_all,
   width = 20,
   height = 15,
@@ -5849,7 +5855,7 @@ ggsave(
 
 # Save TIFF
 ggsave(
-  filename = file.path(output_dir, "Figure SI-8. Article.tiff"),
+  filename = file.path(output_dir, "Figure_SI-8. Article.tiff"),
   plot = plot_all,
   width = 20,
   height = 15,
@@ -5955,13 +5961,12 @@ WC_plot <- ggplot(plot_df,
 
 WC_plot
 
-# Create subfolder "PCI ME Figures" inside it
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+# Save
+output_dir <- here("Figures")
 
 # Save PNG
 ggsave(
-  filename = file.path(output_dir, "Figure SI-9. Article.png"),
+  filename = file.path(output_dir, "Figure_SI-9. Article.png"),
   plot = WC_plot,
   width = 20,
   height = 25,
@@ -5971,7 +5976,7 @@ ggsave(
 
 # Save TIFF
 ggsave(
-  filename = file.path(output_dir, "Figure SI-9. Article.tiff"),
+  filename = file.path(output_dir, "Figure_SI-9. Article.tiff"),
   plot = WC_plot,
   width = 20,
   height = 25,
@@ -5984,9 +5989,6 @@ ggsave(
 ```
 
 ```{r}
-library(readxl)
-library(writexl)
-
 write_files_to_excel <- function(files, sheet_names = NULL, out_file = "combined_output.xlsx") {
   
   # If sheet names not provided, use file names without extension
