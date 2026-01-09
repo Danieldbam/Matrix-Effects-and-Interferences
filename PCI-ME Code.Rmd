@@ -4906,11 +4906,99 @@ plot.tryp.test.rsd
 
 # Supplementary Tables and Figures
 
-Table SI-1
+## Table SI-1
 
-Table SI-2
+```{r}
+# Create table
+si_table <- tribble(
+  ~Formula,              ~`Compound name`,        ~Polarity, ~Adduct,       ~`Monoisotopic m/z (Da)`, ~`LogP (ChemAxon)`, ~`LogD (pH 5.5, ChemSpider)`, ~`Compound class`,            ~`Concentration (µM)`,
+  "C8H6D6N",             "Indole-d6",              "+",       "[M+H]+",       124.1028,               2.07,              2.44,                         "Indole",                    8.0,
+  "C6H3NO2D10",          "Leucine-d10",            "+",       "[M+H]+",       142.1647,              -1.6,             -1.86,                        "Aliphatic amino acid",      3.0,
+  "C5H4NO4D5",           "Glutamic acid-d5",       "-",       "[M−H]−",       151.0773,              -3.2,             -4.77,                        "Acidic amino acid",        10.0,
+  "C7H6NO3D9",           "Carnitine-d9",           "+",       "[M+H]+",       171.1690,              -4.9,             -3.61,                        "Carnitine",                0.09,
+  "13C6H12O6",           "Glucose-13C6",           "+",       "[M+NH4]+",     204.1173,              -2.9,             -2.21,                        "Sugar",                   13.0,
+  "C11H7N2O2D5",         "Tryptophan-d5",          "+",       "[M+H]+",       210.1285,              -1.1,             -1.06,                        "Aromatic amino acid",     10.0,
+  "C18H1O2D35",          "Stearic acid-d35",       "+",       "[M+NH4]+",     337.5251,               7.15,             7.26,                         "Fatty acid",             200.0,
+  "C24H36O5D4",          "Cholic acid-d4",         "-",       "[M−H]−",       411.3054,               2.48,             1.29,                         "Bile acid",                5.0
+)
 
-## Tables SI-3
+# Render table with caption
+kable(
+  si_table,
+  format  = "html",
+  caption = "Table SI-1. Overview of stable isotope-labelled standards used in the PCI experiments."
+) %>%
+  kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover", "condensed")
+  )
+
+```
+
+## Table SI-2
+
+```{r}
+# Create table
+si2_table <- tribble(
+  ~`Processing step`,           ~Parameter,                                   ~Value,
+  "Spectrum selection",         "Total intensity threshold",                  "500",
+  "Spectrum selection",         "S/N threshold (FT)",                          "1.5",
+  "Spectrum selection",         "MS order / polarity",                         "Any",
+  
+  "Feature detection",          "Mass tolerance",                              "3 ppm",
+  "Feature detection",          "Minimum peak intensity",                     "2.5 × 10⁵",
+  "Feature detection",          "Minimum scans per peak",                     "5",
+  "Feature detection",          "Chromatographic S/N threshold",              "3",
+  "Feature detection",          "Maximum peak width",                         "1 min",
+  "Feature detection",          "Gap ratio threshold",                        "0.35",
+  
+  "Isotope handling",           "Elements considered",                        "Br, Cl",
+  "Isotope handling",           "False-positive isotope removal",             "Enabled",
+  
+  "Ion/adduct assignment",      "Adducts considered",                         "[M+H]+, [M−H]−, [M+Na]+, [M+K]+, [M+NH4]+, [M+FA−H]−",
+  "Ion/adduct assignment",      "Base ions",                                  "[M+H]+, [M−H]−",
+  
+  "Feature alignment",          "Mass tolerance",                              "3 ppm",
+  "Feature alignment",          "RT tolerance",                                "0.25 min",
+  "Feature alignment",          "Minimum valley",                              "10%",
+  "Feature alignment",          "Area integration",                            "Most common ion",
+  
+  "Peak quality filtering",     "Peak rating threshold",                      "6.5",
+  "Peak quality filtering",     "Minimum number of files",                    "3",
+  
+  "Gap filling",                "Mass tolerance",                              "5 ppm",
+  "Gap filling",                "S/N threshold",                               "1.5",
+  "Gap filling",                "Minimum scans per peak",                     "3",
+  
+  "Background filtering",       "Max sample/blank ratio",                     "6",
+  
+  "Compound annotation",        "Annotation sources",                         "mzVault, mzCloud, ChemSpider (HMDB), predicted compositions",
+  "Compound annotation",        "Mass tolerance",                              "3 ppm",
+  
+  "Spectral library search",    "mzVault match factor threshold",              "60",
+  "Spectral library search",    "mzVault RT tolerance",                        "0.2 min",
+  "Spectral library search",    "mzCloud precursor tolerance",                "10 ppm",
+  "Spectral library search",    "mzCloud fragment tolerance (FT)",             "10 ppm",
+  
+  "Elemental composition",      "Mass tolerance",                              "4 ppm",
+  "Elemental composition",      "Allowed elements",                            "C, H, N, O, S, P, Br, Cl",
+  "Elemental composition",      "Minimum isotope pattern coverage",            "90%"
+)
+
+# Render table
+kable(
+  si2_table,
+  format  = "html",
+  caption = "Table SI-2. Data-processing parameters used for feature detection, alignment, gap filling, and compound annotation in LC–HRMS data analysis (Thermo Compound Discoverer)."
+) %>%
+  kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover", "condensed")
+  )
+
+```
+
+## Table SI-3
 
 manually made
 
@@ -4937,7 +5025,7 @@ kable(
 
 ```
 
-## Tables SI-4
+## Table SI-4
 
 ```{r}
 #---------------------------------------------
