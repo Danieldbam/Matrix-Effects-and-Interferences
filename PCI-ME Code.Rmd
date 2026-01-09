@@ -6,7 +6,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-### Reproducibility 
+### Reproducibility
 
 ```{r}
 ## Reproducibility
