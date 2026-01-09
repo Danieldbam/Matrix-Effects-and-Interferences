@@ -6,6 +6,19 @@ editor_options:
   chunk_output_type: console
 ---
 
+### Reproducibility 
+
+```{r}
+## Reproducibility
+
+This project uses the `renv` package to manage R and package versions.
+
+To reproduce the computational environment:
+
+install.packages("renv")
+renv::restore()
+```
+
 # Load libraries
 
 ```{r}
@@ -48,6 +61,7 @@ library(kableExtra)
 library(ggpubr)
 library(cowplot)
 library(here)
+library(renv)
 ```
 
 original filepath
