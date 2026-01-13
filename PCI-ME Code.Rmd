@@ -9,59 +9,53 @@ editor_options:
 ### Reproducibility
 
 ```{r}
-## Reproducibility
+## This project uses renv for dependency management.
+## R version required: 4.3.3
 
-This project uses the `renv` package to manage R and package versions.
-
-To reproduce the computational environment:
-
-install.packages("renv")
-renv::restore()
+## Reproduce the computational environment
+install.packages("renv", ask = FALSE)
+renv::restore
 ```
 
 # Load libraries
 
 ```{r}
-library(readxl)
+## Core data + plotting
 library(tidyverse)
-library(emmeans)
-library(vtable)
-library(tinytex)
+library(readxl)
 library(scales)
-library(stringdist)
 library(zoo)
 library(patchwork)
-library(ggplot2)
-library(dplyr)
-library(zoo)
 library(RColorBrewer)
-library(readr)
-library(readxl)
-library(tidyverse)
-library(emmeans)
-library(vtable)
-library(tinytex)
-library(scales)
-library(stringdist)
-library(zoo)
-library(patchwork)
-library(xcms)
-library(fuzzyjoin)
-library(stringr)
-library(homologueDiscoverer)
-library(gridExtra)
-library(grid)
-library(pheatmap)
-library(classyfireR)
-library(pracma)
+library(cowplot)
+
+## Statistics / modelling
 library(broom)
 library(rstatix)
+library(fuzzyjoin)
+library(stringdist)
+library(pracma)
+
+## Tables / reporting
 library(knitr)
 library(kableExtra)
 library(ggpubr)
-library(cowplot)
+
+## MS / metabolomics
+library(xcms)
+library(MassTools)
+library(homologueDiscoverer)
+library(classyfireR)
+
+## Heatmaps / layout
+library(pheatmap)
+library(gridExtra)
+library(grid)
+
+## Utilities
 library(here)
 library(renv)
+library(tinytex)
 ```
 
 original filepath
@@ -287,12 +281,10 @@ print(Figure.1)
 
 ### Article figure 1.
 
-\# define output directory inside repo
-
-output_dir \<- here("Figures")
-
 ```{r}
+# define output directory inside repo
 
+output_dir <- here("Figures")
 
 
 ggsave(
@@ -4054,7 +4046,7 @@ file.list <- read_excel(here("Data","Importfiles-CD.xlsx")) %>%
   ungroup()
 
 # Assuming 'long_data' is your data frame and 'x_limits' is defined
-filtered_data_2 <- long_data_NTC %>%
+filtered_data_2 <- long_data %>%
   filter(
     #between(Times, 4, 6),
     Sequence %in% 1:45,
