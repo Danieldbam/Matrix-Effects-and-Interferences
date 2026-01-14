@@ -775,10 +775,10 @@ Figure.3 <- summary_table_F %>%
   # Text annotations (for PPT rows only)
   geom_text(data = summary_table_F %>% filter(Wash == "PPT") %>% distinct(Wash, Compound),
             
-            aes(x = 10.75, y = max_intensity * 1, label = "Phospholipids"), 
+            aes(x = 10.75, y = max_intensity * 1.05, label = "Phospholipids"), 
             size = 4, fontface = "bold", hjust = 0.5, inherit.aes = FALSE) +
   geom_text(data = summary_table_F %>% filter(Wash == "PLR unwashed") %>% distinct(Wash, Compound),
-            aes(x = 6, y = max_intensity * 1, label = "Filter Contaminants"), 
+            aes(x = 6, y = max_intensity * 1.05, label = "Filter Contaminants"), 
             size = 4, fontface = "bold", hjust = 0.5, inherit.aes = FALSE) +
 
   facet_grid(Wash ~ Compound) +
@@ -807,6 +807,7 @@ print(Figure.3)
 
 # Save output
 output_dir <- here("Figures")
+output_dir <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts/PCI ME Figures"
 
 # Save as PNG
 ggsave(
