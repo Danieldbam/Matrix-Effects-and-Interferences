@@ -696,97 +696,140 @@ long_data <- combined_data %>%
 ### Plot: Carnitine and Leucine PPT vs NoWash
 
 ```{r}
+# ===============================
 # Define x-axis limits
+# ===============================
 x_limits <- c(0, 14)
 
+# ===============================
 # Filter data
+# ===============================
 filtered_data <- long_data %>%
-  filter(between(Times, x_limits[1], x_limits[2]),
-         Compound %in% c("Carnitine-d9", "Leucine-d10"),
-         Wash %in% c("PPT","NoWash"),
-          Replicate %in% 1:8 ) %>%
-  filter(!(Sample == "NIST" & Replicate >= 4)) #%>%
- # filter(!(Replicate %in% c("1","2","3", "4","6") & Sample == "Solvent")) %>%
-  #filter(!(Replicate %in% c("4", "5","7","8") & Sample == "Solvent"))
+  filter(
+    between(Times, x_limits[1], x_limits[2]),
+    Compound %in% c("Carnitine-d9", "Leucine-d10"),
+    Wash %in% c("PPT", "NoWash"),
+    Replicate %in% 1:8
+  ) %>%
+  filter(!(Sample == "NIST" & Replicate >= 4))
 
-# Step 1: Create Summary Table for Filtered Data (Plot Data)
+# ===============================
+# Summary table for plotting
+# ===============================
 summary_table_F <- filtered_data %>%
   group_by(Scan, Compound, Wash) %>%
   summarise(
     avg_time = mean(Times, na.rm = TRUE),
-    Process = mean(Average[Sample == "Process"], na.rm = TRUE),
-    NIST = mean(Average[Sample == "NIST"], na.rm = TRUE),
-    Solvent = mean(Average[Sample == "Solvent"], na.rm = TRUE),
+    Process  = mean(Average[Sample == "Process"],  na.rm = TRUE),
+    NIST     = mean(Average[Sample == "NIST"],     na.rm = TRUE),
+    Solvent  = mean(Average[Sample == "Solvent"],  na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
-    # Calculate Matrix Effects
-    Matrix_Effect_NIST_Process = ((NIST / Process) * 100) - 100,
-    Matrix_Effect_Process_Solvent = ((Process / Solvent) * 100) - 100,
-    Matrix_Effect_NIST_Solvent = ((NIST / Solvent) * 100) - 100
-  ) %>%
-  pivot_longer(
-    cols = starts_with("Matrix_Effect"),
-    names_to = "Comparison",
-    values_to = "Matrix_Effect"
+    Matrix_Effect = ((NIST / Solvent) * 100) - 100,
+    Comparison = "NIST / Solvent"
   ) %>%
   group_by(Comparison, avg_time, Scan, Compound, Wash) %>%
   summarise(
-    # Aggregate Matrix Effects and Calculate Min/Max
     Matrix_Effect = mean(Matrix_Effect, na.rm = TRUE),
-   .groups = "drop"
+    .groups = "drop"
   ) %>%
   mutate(
-    # Recode Comparisons for Better Readability
-    Comparison = recode(Comparison,
-                        "Matrix_Effect_NIST_Process" = "NIST / Process",
-                        "Matrix_Effect_Process_Solvent" = "Process / Solvent",
-                        "Matrix_Effect_NIST_Solvent" = "NIST / Solvent")
+    Wash = recode(Wash, "NoWash" = "PLR unwashed"),
+    Wash = factor(Wash, levels = c("PPT", "PLR unwashed")),
+
+    Compound_plot = recode(
+      Compound,
+      "Carnitine-d9" = "Carnitine-d[9]",
+      "Leucine-d10"  = "Leucine-d[10]"
+    )
   )
 
-# Relabel and reorder Wash levels
-summary_table_F <- summary_table_F %>%
-  mutate(Wash = recode(Wash, "NoWash" = "PLR unwashed"),
-         Wash = factor(Wash, levels = c("PPT", "PLR unwashed")))
+# ===============================
+# Annotation helper data (ONE row per Wash)
+# ===============================
+annot_PPT <- summary_table_F %>%
+  filter(Wash == "PPT") %>%
+  distinct(Wash)
 
-# Calculate global max intensity for annotation height
+annot_PLR <- summary_table_F %>%
+  filter(Wash == "PLR unwashed") %>%
+  distinct(Wash)
+
 max_intensity <- max(summary_table_F$Matrix_Effect, na.rm = TRUE)
 
-# Create the plot
-Figure.3 <- summary_table_F %>%
-  filter(Comparison == "NIST / Solvent") %>%
-  ggplot(aes(x = avg_time)) +
-  
+# ===============================
+# Plot
+# ===============================
+Figure.3 <- ggplot(summary_table_F, aes(x = avg_time)) +
+
   # Matrix effect lines
-  geom_line(aes(y = Matrix_Effect, color = Compound), size = 0.8) +
-  
-  # Reference line
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black", size = 0.7) +
-  
-  # Shaded regions
-  annotate("rect", xmin = 7.5, xmax = 14, ymin = -Inf, ymax = Inf, 
-           fill = "gray80", alpha = 0.25) +
-  annotate("text", x = 4.8, y = 5, label = "*", size = 6, fontface = "bold") +
- geom_rect(data = summary_table_F %>% filter(Wash == "PLR unwashed") %>% distinct(Wash, Compound),
-          aes(xmin = 5, xmax = 7, ymin = -Inf, ymax = Inf),
-          fill = "gray70", alpha = 0.25, inherit.aes = FALSE)+
+  geom_line(
+    aes(y = Matrix_Effect, color = Compound),
+    size = 0.8
+  ) +
 
+  # Zero reference
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed",
+    color = "black",
+    size = 0.7
+  ) +
 
-  # Text annotations (for PPT rows only)
-  geom_text(data = summary_table_F %>% filter(Wash == "PPT") %>% distinct(Wash, Compound),
-            
-            aes(x = 10.75, y = max_intensity * 1.05, label = "Phospholipids"), 
-            size = 4, fontface = "bold", hjust = 0.5, inherit.aes = FALSE) +
-  geom_text(data = summary_table_F %>% filter(Wash == "PLR unwashed") %>% distinct(Wash, Compound),
-            aes(x = 6, y = max_intensity * 1.05, label = "Filter Contaminants"), 
-            size = 4, fontface = "bold", hjust = 0.5, inherit.aes = FALSE) +
+  # Late elution shading (ALL panels)
+  annotate(
+    "rect",
+    xmin = 7.5, xmax = 14,
+    ymin = -Inf, ymax = Inf,
+    fill = "gray80",
+    alpha = 0.25
+  ) +
 
-  facet_grid(Wash ~ Compound) +
+  # -------------------------------
+  # PLR unwashed ONLY
+  # -------------------------------
+  geom_rect(
+    data = annot_PLR,
+    aes(xmin = 5, xmax = 7, ymin = -Inf, ymax = Inf),
+    fill = "gray70",
+    alpha = 0.25,
+    inherit.aes = FALSE
+  ) +
+
+  geom_text(
+    data = annot_PLR,
+    aes(x = 6, y = max_intensity * 1.05, label = "Filter Contaminants"),
+    size = 4,
+    fontface = "bold",
+    inherit.aes = FALSE
+  ) +
+
+  # -------------------------------
+  # PPT ONLY
+  # -------------------------------
+  geom_text(
+    data = annot_PPT,
+    aes(x = 10.75, y = max_intensity * 1.05, label = "Phospholipids"),
+    size = 4,
+    fontface = "bold",
+    inherit.aes = FALSE
+  ) +
+
+  # Facets
+  facet_grid(
+    Wash ~ Compound_plot,
+    labeller = labeller(
+      Compound_plot = label_parsed,
+      Wash = label_value
+    )
+  ) +
+
   labs(
     x = "Retention Time (mins)",
-    y = "Matrix Effect (%)",
-    color = "Compound"
+    y = "Matrix Effect (%)"
   ) +
+
   theme_minimal(base_size = 14) +
   theme(
     legend.position = "none",
@@ -797,8 +840,11 @@ Figure.3 <- summary_table_F %>%
     plot.margin = margin(5, 10, 5, 5, unit = "mm")
   )
 
+# ===============================
 # Display
+# ===============================
 print(Figure.3)
+
 ```
 
 ### Article figure 3.
@@ -807,7 +853,6 @@ print(Figure.3)
 
 # Save output
 output_dir <- here("Figures")
-output_dir <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts/PCI ME Figures"
 
 # Save as PNG
 ggsave(
@@ -916,9 +961,9 @@ summary_table_1 <- filtered_data_1 %>%
   ) %>%
     mutate(
    Wash = recode(Wash,
-                  "22x" = "22x wash PLR", #previously "PLR 22x wash"
-                  "NoWash" = "Unwashed PLR"), #previously "PLR unwashed"
-    Wash = factor(Wash, levels = c("22x wash PLR", "Unwashed PLR", "PPT"))
+                  "22x" = "PLR 22x wash", #previously "PLR 22x wash"
+                  "NoWash" = "PLR unwashed"), #previously "PLR unwashed"
+    Wash = factor(Wash, levels = c("PLR 22x wash", "PLR unwashed", "PPT"))
   )
 
 # Global limits based on new CI
@@ -1031,11 +1076,11 @@ summary_table_2 <- filtered_data_2 %>%
       "Matrix_Effect_Process_Solvent" = "Process / Solvent",
       "Matrix_Effect_NIST_Solvent"     = "NIST / Solvent")
   ) %>%
-   mutate(
+    mutate(
    Wash = recode(Wash,
-                  "22x" = "22x wash PLR", #previously "PLR 22x wash"
-                  "NoWash" = "Unwashed PLR"), #previously "PLR unwashed"
-    Wash = factor(Wash, levels = c("22x wash PLR", "Unwashed PLR", "PPT"))
+                  "22x" = "PLR 22x wash", #previously "PLR 22x wash"
+                  "NoWash" = "PLR unwashed"), #previously "PLR unwashed"
+    Wash = factor(Wash, levels = c("PLR 22x wash", "PLR unwashed", "PPT"))
   )
 
 # --- Significant regions (NIST vs Solvent) ---
@@ -3599,13 +3644,15 @@ All_plot_EIC_long <- combined_eic_df_filtered_long %>%
     labeller = labeller(Compound_plot = label_parsed)
   ) +
   
-  scale_y_continuous(
-    name = "Intensity",
-    sec.axis = sec_axis(
-      trans = ~ . / scaling_factor,
-      name = "Matrix Factor"
-    )
-  ) +
+scale_y_continuous(
+  name = "Intensity",
+  breaks = c(0, 2e7, 4e7, 6e7, 8e7),
+  labels = c("0e+00", "", "4e+07", "", "8e+07"),
+  sec.axis = sec_axis(
+    trans = ~ . / scaling_factor,
+    name = "Matrix Factor"
+  )
+) +
   
   scale_color_manual(
     values = c(
@@ -3620,18 +3667,22 @@ All_plot_EIC_long <- combined_eic_df_filtered_long %>%
     y = "Intensity"
   ) +
   
+  
   theme_minimal(base_size = 14) +
   theme(
+    # axis.title.y = element_text(size = 14),
+    axis.text.y  = element_text(size = 12),
     axis.text.x = element_text(angle = 45, hjust = 1),
     legend.title = element_blank(),
     legend.position = "bottom",
     strip.text.y = element_text(angle = 0),
+    strip.text.x = element_text(size = 12),
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
     plot.title = element_blank(),
     axis.line = element_line(color = "black"),
     axis.ticks = element_line(color = "black")
-  )
+    )
 
 # -----------------------------
 # Add panel label "A"
@@ -3658,111 +3709,181 @@ print(All_plot_EIC_long)
 
 ```{r}
 
-# Step 1: Apply trapezoidal integration for each Intensity_Type (average and corrected intensity)
+# ===============================
+# Step 1: Trapezoidal integration
+# ===============================
 integrated_data <- combined_eic_df_filtered_long %>% 
-  filter(!is.na(rt) & !is.na(Average_Intensity)) %>%  # Filter out NA values in rt and Average_Intensity
+  filter(
+    !is.na(rt),
+    !is.na(Average_Intensity),
+    !is.na(Compound)        # ⬅ CRITICAL FIX
+  ) %>%
   group_by(Wash, Sample, Replicate, Intensity_Type, Sequence, Compound) %>%
   summarise(
-    integration_area = trapz(rt, Average_Intensity),  # Trapezoidal integration
+    integration_area = trapz(rt, Average_Intensity),
     .groups = "drop"
   )
 
-# Step 2: Reshape data to have 'average_intensity' and 'corrected_intensity' in separate columns
+# ===============================
+# Step 2: Wide format
+# ===============================
 integrated_data_wide <- integrated_data %>%
   pivot_wider(
-    names_from = Intensity_Type,  # Spread 'Intensity_Type' into separate columns
-    values_from = integration_area  # Fill with integration_area
+    names_from  = Intensity_Type,
+    values_from = integration_area
   )
 
-# Step 3: Pivot back to long format to have the intensity types in a single column again for easier plotting
+# ===============================
+# Step 3: Back to long
+# ===============================
 integrated_data_long_wide <- integrated_data_wide %>%
   pivot_longer(
-    cols = starts_with("intensity") | starts_with("corrected_intensity"),  # Include all intensity columns
-    names_to = "Intensity_Type",  # Create a column for Intensity_Type
-    values_to = "integration_area"  # Store the corresponding values in integration_area
+    cols = -c(Wash, Sample, Replicate, Sequence, Compound),
+    names_to = "Intensity_Type",
+    values_to = "integration_area"
   )
-# Step 4: Filter out unwanted rows and create a combined Intensity_Type with Compound
 
+# ===============================
+# Step 4: Filter + relabel logic (IDEMPOTENT & SAFE)
+# ===============================
 integrated_data_long_wide_filtered <- integrated_data_long_wide %>%
-  group_by(Wash, Replicate, Compound) %>%
-  filter(!(Intensity_Type == "intensity" & duplicated(Replicate))) %>%  # Remove duplicates of average_intensity for each replicate
+  
+  # Keep ONE uncorrected (intensity) per Wash + Replicate
+  group_by(Wash, Replicate) %>%
+  filter(!(Intensity_Type == "intensity" & duplicated(Intensity_Type))) %>%
+  ungroup() %>%
+  
+  # Define Uncorrected ONLY by Intensity_Type (never by Compound)
   mutate(
-    # Create a combined Intensity_Type with Compound to differentiate the intensity types by compound
-    Intensity_Compound = paste(Intensity_Type, Compound, sep = "_"),
     Compound = if_else(
-      Intensity_Type == "intensity" & Compound == "Glucose-13C6",
+      Intensity_Type == "intensity",
       "Uncorrected",
       Compound
-    ),
-     # Keep other values of Compound unchanged
+    )
+  ) %>%
+  
+  # Keep:
+  # - Uncorrected (from intensity)
+  # - All corrected compounds
+  filter(
+    Intensity_Type != "intensity" | Compound == "Uncorrected"
+  ) %>%
+  
+  # Set plotting order
+  mutate(
     Compound = factor(
       Compound,
-      levels = c("Uncorrected", "Tryptophan-d5", "Leucine-d10", "Glucose-13C6")
-    )  # Set the order of levels for Compound
-  ) %>%
-  filter(!is.na(Compound),
-    !(Intensity_Type == "intensity" & Compound != "Uncorrected")  # Remove all average_intensity except for Normal compound
+      levels = c(
+        "Uncorrected",
+        "Tryptophan-d5",
+        "Leucine-d10",
+        "Glucose-13C6"
+      )
+    )
   )
 
-# Step 1: Calculate the standard deviation (SD), standard error (SE), and RSD% for each Wash and Compound
+# ===============================
+# Step 5: Error statistics
+# ===============================
 error_data <- integrated_data_long_wide_filtered %>%
   group_by(Wash, Compound) %>%
+  filter(Wash != "PPT") %>%
+  droplevels() %>%
   summarise(
     Mean = mean(integration_area, na.rm = TRUE),
-    SD = sd(integration_area, na.rm = TRUE),
-    SE = SD / sqrt(n()),  # Calculate standard error
-    RSD_percent = (SD / Mean) * 100,  # Calculate RSD percentage
+    SD   = sd(integration_area, na.rm = TRUE),
+    SE   = SD / sqrt(n()),
+    RSD_percent = (SD / Mean) * 100,
     .groups = "drop"
   )
 
-# Step 2: Create the plot with bar chart, error bars, and RSD% labels
-barplot_compounds_with_error <- ggplot(error_data, aes(x = Compound, y = Mean, fill = Compound)) +
-  # Create the bars
-  geom_bar(stat = "identity", position = position_dodge(width = 0.9), color = "black", linewidth = 0.5) + 
-  # Add error bars
-  geom_errorbar(aes(ymin = Mean - SE, ymax = Mean + SE), 
-                position = position_dodge(width = 0.9), width = 0.25, color = "black") + 
-  # Add RSD% labels on top of the bars
-  geom_text(aes(y = Mean + SE + 0.05,  # Adjust position to be above the error bars
-                label = paste0(signif(RSD_percent, 2), "%")),  # Display RSD% with 3 significant figures
-            position = position_dodge(width = 0.9), color = "black", size = 3, vjust = -0.5) +  # Position above bars
-  scale_y_continuous(labels = scales::scientific,  # Use scientific notation for y-axis
-                     limits = c(0, max(error_data$Mean + error_data$SE) * 1.1)) +  # Set a max y limit, 20% above the highest bar
-  facet_wrap(~Wash, ncol = 4) +  # Facet by Wash condition
-  labs(
-    title = "Comparison of Normal vs Corrected Intensity by PCI-IS with Error Bars and RSD%",
-    x = NULL,
-    y = "Integrated Area",
-    fill = "Intensity Type"
-  ) + 
-  theme_minimal() +
-  theme(
-    legend.position = "none",  # Hide legend
-    plot.title = element_blank(),
-    legend.title = element_blank(),
-    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
-    panel.border = element_blank(),  # Remove panel border
-    panel.grid.major = element_blank(),  # Remove major gridlines
-    panel.grid.minor = element_blank(),  # Remove minor gridlines
-    axis.line = element_line(color = "black"),  # Add axis lines
-    axis.ticks = element_line(color = "black")
+# ===============================
+# Step 6: Recode compounds for plotting (labels only)
+# ===============================
+error_data <- error_data %>%
+  mutate(
+    Compound_plot = recode(
+      Compound,
+      "Uncorrected"    = "Uncorrected",
+      "Tryptophan-d5"  = "Tryptophan-d[5]",
+      "Leucine-d10"    = "Leucine-d[10]",
+      "Glucose-13C6"   = "Glucose-{}^{13}*C[6]"
+    ),
+    Compound_plot = factor(
+      Compound_plot,
+      levels = c(
+        "Uncorrected",
+        "Tryptophan-d[5]",
+        "Leucine-d[10]",
+        "Glucose-{}^{13}*C[6]"
+      )
+    )
   )
 
+# ===============================
+# Step 7: Bar plot
+# ===============================
+barplot_compounds_with_error <- ggplot(
+  error_data,
+  aes(x = Compound_plot, y = Mean, fill = Compound_plot)
+) +
+  geom_bar(
+    stat = "identity",
+    color = "black",
+    linewidth = 0.5
+  ) +
+  geom_errorbar(
+    aes(ymin = Mean - SE, ymax = Mean + SE),
+    width = 0.25,
+    color = "black"
+  ) +
+  geom_text(
+    aes(
+      y = Mean + SE + 0.05,
+      label = paste0(signif(RSD_percent, 2), "%")
+    ),
+    size = 3.5,
+    vjust = -0.5
+  ) +
+  scale_x_discrete(labels = function(x) parse(text = x)) +
+  scale_y_continuous(
+  labels = scales::scientific,
+  expand = expansion(mult = c(0, 0.15))  # ⬅ 15% headroom at the top
+) +
+  facet_wrap(~Wash, ncol = 4, drop = TRUE) +
+  labs(
+    x = NULL,
+    y = "Integrated Area"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+  legend.position = "none",
+   axis.text.y  = element_text(size = 12),
+  axis.text.x = element_text(size = 12, angle = 45, hjust = 1),
+  strip.text.x = element_text(size = 12),
+  panel.grid = element_blank(),
+  axis.line = element_line(color = "black"),
+  axis.ticks = element_line(color = "black"),
+)
 
+# ===============================
+# Add panel label "B"
+# ===============================
 barplot_compounds_with_error <- barplot_compounds_with_error +
   labs(title = "B") +
   theme(
     plot.title.position = "plot",
     plot.title = element_text(
-      hjust = 0,          # left-align
-      vjust = 1,
+      hjust = 0,
       face = "bold",
       size = 14
     )
   )
 
+# ===============================
+# Display
+# ===============================
 print(barplot_compounds_with_error)
-
 
 ```
 
@@ -3781,6 +3902,7 @@ print(combined_mef_plot)
 
 #Save
 output_dir <- here("Figures")
+output_dir <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts/PCI ME Figures"
 
 # Save PNG
 ggsave(
