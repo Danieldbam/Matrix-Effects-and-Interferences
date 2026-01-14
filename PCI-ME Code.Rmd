@@ -63,6 +63,8 @@ original filepath
 ```{r}
 setwd("C:/Users/DanielMalheiro/Clinical Microbiomics/Teamwebsted - MS-Omics Team Folder/Daniel/PhD/Manuscript/Github/Matrix-Effects-and-Interferences")
 
+output_dir <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts/PCI ME Figures"
+
 ```
 
 ## Figure 1. Flowrate
@@ -799,7 +801,7 @@ Figure.3 <- ggplot(summary_table_F, aes(x = avg_time)) +
 
   geom_text(
     data = annot_PLR,
-    aes(x = 6, y = max_intensity * 1.05, label = "Filter Contaminants"),
+    aes(x = 6, y = max_intensity * 1.10, label = "Filter Contaminants"),
     size = 4,
     fontface = "bold",
     inherit.aes = FALSE
