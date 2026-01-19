@@ -58,12 +58,18 @@ library(renv)
 library(tinytex)
 ```
 
-original filepath
+### Filepaths and outputs
 
 ```{r}
+#set the working directory to where you have placed the project 
 setwd("C:/Users/DanielMalheiro/Clinical Microbiomics/Teamwebsted - MS-Omics Team Folder/Daniel/PhD/Manuscript/Github/Matrix-Effects-and-Interferences")
 
+#set output for all figures
+#output_dir <- here("Figures")
 output_dir <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts/PCI ME Figures"
+
+#Set directory for mzML files, downloaded through https://www.ebi.ac.uk/metabolights/editor/MTBLS13682
+mzml_files <- 
 
 ```
 
@@ -284,11 +290,7 @@ print(Figure.1)
 ### Article figure 1.
 
 ```{r}
-# define output directory inside repo
-
-output_dir <- here("Figures")
-
-
+# Save
 ggsave(
   filename = file.path(output_dir, "Figure_1.png"),
   plot = Figure.1,
@@ -544,7 +546,7 @@ print(Figure.2)
 # -----------------------------
 # Save output
 # -----------------------------
-output_dir <- here("Figures")
+
 
 # Save PNG
 ggsave(
@@ -852,10 +854,6 @@ print(Figure.3)
 ### Article figure 3.
 
 ```{r}
-
-# Save output
-output_dir <- here("Figures")
-
 # Save as PNG
 ggsave(
   filename = file.path(output_dir, "Figure_3.png"),
@@ -1470,9 +1468,6 @@ print(Combined_MEvsEIC)
 ### Article figure 4.
 
 ```{r}
-# Define base file path
-output_dir <- here("Figures")
-
 # Save PNG
 ggsave(
   filename = file.path(output_dir, "Figure_4.png"),
@@ -1579,7 +1574,13 @@ massspec_ions <- ggplot(scan787_data, aes(x = mz, y = intensity)) +
     axis.ticks = element_line(color = "black"),
     axis.title.x = element_text(),
     axis.title.y = element_text(),
-    strip.text = element_text(size = 14, face = "bold"))
+    strip.text = element_text(size = 14, face = "bold = 1,
+      face = "bold",
+      size = 14
+    )
+  )
+
+
 
 print(massspec_ions)
 ```
@@ -1648,7 +1649,18 @@ conta_solvent <- summed_signals %>%
     axis.title.x = element_text(),
     axis.title.y = element_text(),
     strip.text = element_text(size = 14)
+  ) +
+  labs(title = "B") +
+  theme(
+    plot.title.position = "plot",
+    plot.title = element_text(
+      hjust = 0,          # left-align
+      vjust = 1,
+      face = "bold",
+      size = 14
+    )
   )
+
 
 # Print the plot
 
@@ -1662,12 +1674,6 @@ print(contaminent_blanks)
 ### Article figure 5.
 
 ```{r}
-
-
-# Create subfolder "PCI ME Figures" inside it
-output_dir <- here("Figures")
-
-
 # Save PNG
 ggsave(
   filename = file.path(output_dir, "Figure_5.png"),
@@ -1860,9 +1866,6 @@ print(g2tax)
 ### Article figure 6.
 
 ```{r}
-# Define base file path
-output_dir <- here("Figures")
-
 # Save PNG
 ggsave(
   filename = file.path(output_dir, "Figure_6.png"),
@@ -2221,10 +2224,8 @@ for (label in names(label_positions)) {
 ### Article figure 7
 
 ```{r}
-# Define base file path}
-output_dir <- here("Figures")
 
-# ==== TIFF Export (Analytical Chemistry format) ====
+# ==== TIFF Export (format) ====
 tiff(
   filename = file.path(output_dir, "Figure_7.tiff"),
   width = 28,
@@ -2499,6 +2500,15 @@ spectrum_glucose <- ggplot(combined_spectra, aes(x = mz, y = intensity)) +
     axis.line = element_line(color = "black"),
     axis.ticks = element_line(color = "black"),
     strip.text = element_text(size = 10)
+  ) +
+  labs(title = "B") +
+  theme(
+    plot.title.position = "plot",
+    plot.title = element_text(
+      hjust = 0,
+      face = "bold",
+      size = 14
+    )
   )
   
  
@@ -2583,7 +2593,16 @@ glucose_me_plot <- summary_table_3 %>%
     axis.title.x = element_text(),
     axis.title.y = element_text(),
     strip.text = element_text(size = 4)
+    ) +
+  labs(title = "A") +
+  theme(
+    plot.title.position = "plot",
+    plot.title = element_text(
+      hjust = 0,
+      face = "bold",
+      size = 14
     )
+  )
 
 print(glucose_me_plot)
 
@@ -2595,9 +2614,6 @@ print(glu_ME_MS)
 ### Article figure 8.
 
 ```{r}
-# Define base file path
-output_dir <- here("Figures")
-
 # Save PNG
 ggsave(
   filename = file.path(output_dir, "Figure_8.png"),
@@ -2751,12 +2767,6 @@ print(mass_simulation_plot)
 ### Article Figure 9
 
 ```{r}
-
-# ============================
-# 8. Save Output
-# ============================
-output_dir <- here("Figures")
-
 # PNG
 ggsave(
   filename = file.path(output_dir, "Figure_9.png"),
@@ -3165,10 +3175,6 @@ print(plot_ppt_nowash_dilution)
 ### Article figure 10
 
 ```{r}
-# Define base file path
-output_dir <- here("Figures")
-
-
 # Save PNG
 ggsave(
   filename = file.path(output_dir, "Figure_10.png"),
@@ -3285,9 +3291,6 @@ print(MS_dilution)
 ### Article figure 11:
 
 ```{r}
-# Save
-output_dir <- here("Figures")
-
 # Save PNG
 ggsave(
   filename = file.path(output_dir, "Figure_11.png"),
@@ -3532,10 +3535,10 @@ combined_eic_df_with_shift <- combined_eic_df_with_shift %>%
     Wash = factor(Wash, levels = c("22x", "08x", "04x", "NoWash", "PPT")),
     Wash = recode(
       Wash,
-      "22x"    = "PLR 22x Wash",
-      "08x"    = "PLR 8x Wash",
-      "04x"    = "PLR 4x Wash",
-      "NoWash" = "PLR Unwashed",
+      "22x"    = "PLR 22x wash",
+      "08x"    = "PLR 8x wash",
+      "04x"    = "PLR 4x wash",
+      "NoWash" = "PLR unwashed",
       "PPT"    = "PPT"
     ),
     
@@ -3595,7 +3598,7 @@ scaling_factor <-
 All_plot_EIC_long <- combined_eic_df_filtered_long %>%
   filter(
     between(rt, 4.6, 5.1),
-    Wash == "PLR 4x Wash"
+    Wash == "PLR 4x wash"
   ) %>%
   mutate(
     Intensity_Type = recode(
@@ -3684,12 +3687,7 @@ scale_y_continuous(
     plot.title = element_blank(),
     axis.line = element_line(color = "black"),
     axis.ticks = element_line(color = "black")
-    )
-
-# -----------------------------
-# Add panel label "A"
-# -----------------------------
-All_plot_EIC_long <- All_plot_EIC_long +
+    ) +
   labs(title = "A") +
   theme(
     plot.title.position = "plot",
@@ -3866,12 +3864,7 @@ barplot_compounds_with_error <- ggplot(
   panel.grid = element_blank(),
   axis.line = element_line(color = "black"),
   axis.ticks = element_line(color = "black"),
-)
-
-# ===============================
-# Add panel label "B"
-# ===============================
-barplot_compounds_with_error <- barplot_compounds_with_error +
+) +
   labs(title = "B") +
   theme(
     plot.title.position = "plot",
@@ -3901,11 +3894,6 @@ print(combined_mef_plot)
 ### Article figure 12
 
 ```{r}
-
-#Save
-output_dir <- here("Figures")
-output_dir <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts/PCI ME Figures"
-
 # Save PNG
 ggsave(
   filename = file.path(output_dir, "Figure_12.png"),
@@ -4933,9 +4921,7 @@ region_counts
 ### Article figure 13.
 
 ```{r}
-#Save
-output_dir <- here("Figures")
-
+#save
 ggsave(
   file.path(output_dir, "Figure_13.png"),
   plot = combined_plot,
@@ -5260,9 +5246,6 @@ solvent_leucine <- long_data %>%
 print(solvent_leucine)
 
 # Save
-#---------------------------------------------
-output_dir <- here("Figures")
-
 ggsave(
   filename = file.path(output_dir, "Figure_SI-1 Article.png"),
   plot = solvent_leucine,
@@ -5413,9 +5396,6 @@ print(allinter)
 #---------------------------------------------
 # Save
 #---------------------------------------------
-
-output_dir <- here("Figures")
-
 ggsave(
   filename = file.path(output_dir, "Figure_SI-3 Article.png"),
   plot = allinter,
@@ -5552,9 +5532,6 @@ box_sig_plot <- wash_subset %>%
 box_sig_plot
 #---------------------------------------------
 # Save
-#---------------------------------------------
-output_dir <- here("Figures")
-
 ggsave(
   filename = file.path(output_dir, "Figure_SI-4 Article.png"),
   plot = box_sig_plot,
@@ -5654,8 +5631,6 @@ pub_ready_plot <- plot_matrix_effect_zoom_22xonly / nist_22x_rep
 # ---- Display ----
 print(pub_ready_plot)
 
-# Save
-output_dir <- here("Figures")
 
 # Save PNG
 ggsave(
@@ -5749,10 +5724,6 @@ Ioninjection_plot <- scan_df %>%
 
 # Print the plot
 print(Ioninjection_plot)
-
-# Save
-output_dir <- here("Figures")
-
 
 # Save PNG
 ggsave(
@@ -5873,9 +5844,6 @@ chromatogram_overlay_scaled <- combined_eic_df_scaled %>%
 print(chromatogram_overlay_scaled)
 
 # Save
-output_dir <- here("Figures")
-
-
 ggsave(
   filename = file.path(output_dir, "Figure_SI-7 Article.png"),
   plot = chromatogram_overlay_scaled,
@@ -6148,8 +6116,16 @@ plot_df <- val_best_worsened %>%
     ),
     
     # Safe factor reordering
-    Feature_RT = factor(Feature_RT, levels = facet_levels)
-  )
+    Feature_RT = factor(Feature_RT, levels = facet_levels),
+      Treatment = factor(Treatment, levels = c("22x", "08x", "04x", "NoWash", "PPT")),
+    Treatment = recode(
+      Treatment,
+      "22x"    = "PLR 22x wash",
+      "08x"    = "PLR 8x wash",
+      "04x"    = "PLR 4x wash",
+      "NoWash" = "PLR unwashed",
+      "PPT"    = "PPT"
+    ))
 
 
 
@@ -6179,9 +6155,6 @@ WC_plot <- ggplot(plot_df,
   )
 
 WC_plot
-
-# Save
-output_dir <- here("Figures")
 
 # Save PNG
 ggsave(
