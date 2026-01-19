@@ -69,7 +69,7 @@ setwd("C:/Users/DanielMalheiro/Clinical Microbiomics/Teamwebsted - MS-Omics Team
 output_dir <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts/PCI ME Figures"
 
 #Set directory for mzML files, downloaded through https://www.ebi.ac.uk/metabolights/editor/MTBLS13682
-mzml_files <- 
+mzml_folder <- "C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN"
 
 ```
 
@@ -318,11 +318,10 @@ ggsave(
 ### Data: faster to extract TIC using mzR
 
 ```{r}
-# Set working directory #Change Dir
-filepath <- "C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN"
+# Set working directory
 
 # List all mzML files in the folder
-mzml_files <- list.files(path = filepath, pattern = "*.mzML", full.names = TRUE)
+mzml_files <- list.files(path = mzml_folder, pattern = "*.mzML", full.names = TRUE)
 
 extract_tic <- function(file_path) {
   # Open mzML file
@@ -1497,14 +1496,11 @@ ggsave(
 ### Data:
 
 ```{r}
-
-# Set working directory #Change dir
-filepath <- "C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN"
-setwd(filepath)
-list.files()
-
 # Load file and extract scan
-file_22x <- "241008-Exp-PAN-1-014-22x-NIST.mzML" 
+file_22x <- file.path(
+  mzml_folder,
+  "241008-Exp-PAN-1-014-22x-NIST.mzML"
+)
 xraw <- xcmsRaw(file_22x)
 scan_index <- 787
 
@@ -1574,7 +1570,16 @@ massspec_ions <- ggplot(scan787_data, aes(x = mz, y = intensity)) +
     axis.ticks = element_line(color = "black"),
     axis.title.x = element_text(),
     axis.title.y = element_text(),
-    strip.text = element_text(size = 14, face = "bold = 1,
+    strip.text = element_text(face = "bold",
+      size = 14
+    )
+  ) +
+  labs(title = "A") +
+  theme(
+    plot.title.position = "plot",
+    plot.title = element_text(
+      hjust = 0,          # left-align
+      vjust = 1,
       face = "bold",
       size = 14
     )
@@ -1703,18 +1708,16 @@ ggsave(
 
 ```{r}
 Sup_info <- here("Data","Supplimentary Information_Excel_Sheets.xlsx")
-data3<- read_excel(Sup_info, sheet = "Feature List")
+data3<- read_excel(Sup_info, sheet = "Homologue Series")
 
 peak_table1 <- data3 %>%
-  dplyr::rename(peak_id = "Compound #") %>% 
-  select(peak_id, "m/z", rt) %>%  
+  select(peak_id, mz, rt) %>%  
   mutate(
     intensity = as.numeric(row_number()), 
     rt = as.numeric(rt * 60),
     peak_id = str_remove(peak_id, "X"),      
     peak_id = as.numeric(peak_id) 
   ) %>%
-  dplyr::rename( mz = "m/z") %>%
   arrange(rt, mz) 
   
 # Define the output file path
@@ -1764,8 +1767,7 @@ merged_df <- difference_left_join(
   by = "homologue_id") %>%
   arrange(homologue_id), 
   data3 %>% 
-    dplyr::rename( mz = "m/z") %>%
-    mutate(
+      mutate(
       mz = round(mz, 4),  
       rt = round(rt, 2)   
     ) %>%
@@ -1916,8 +1918,6 @@ if (file.exists(largelist_path)) {
   # Save results for future runs
   saveRDS(classification_list, largelist_path)
 }
-
-classification_list <- readRDS("~/R scripts/largelist.rds")
 
 meta(classification_list[[1]])
 classification(classification_list[[1]])
@@ -2322,14 +2322,10 @@ dev.off()
 ### Data and plot MS 1
 
 ```{r}
-#Change dir
-filepath <- "C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN"
-setwd(filepath)
-getwd()
-list.files()
-
 # Load the mzML file
-file_nowash <- "241008-Exp-PAN-1-035-NoWash-NIST.mzML"
+file_nowash <- file.path(
+  mzml_folder,
+ "241008-Exp-PAN-1-035-NoWash-NIST.mzML")
 
 if (!exists("raw_data_glu")) {
   raw_data_glu <- xcmsRaw(file_nowash)
@@ -2756,7 +2752,9 @@ mass_simulation_plot <- combined_simulation %>%
     axis.ticks = element_line(color = "black"),
     axis.text.x = element_text(angle = 45, hjust = 1),
     legend.position = "none",
-    strip.text = element_text(size = 12, face = "bold")
+    strip.text = element_text(size = 12,
+                              #face = "bold"
+                              )
   )
 
 print(mass_simulation_plot)
@@ -3203,7 +3201,6 @@ ggsave(
 ### Data + Plot
 
 ```{r}
-#Change dir
 # Load saved spectra
 combined_spectra_loaded <- readRDS(here("Data","combined_mass_spectra_241009_NoWash.rds"))
 
@@ -3319,29 +3316,23 @@ ggsave(
 ### Data and plot
 
 ```{r}
-#Change and test directory
-# # Set the filepath to your directory
-# filepath <- "C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN"
-# setwd(filepath)
-# 
-# # List files in the directory
-# list.files()
-# 
 # # Define function to extract EIC for a target m/z
 # extract_eic <- function(file_name, target_mz, ppm, polarity_label = "positive") {
+#   # Build full file path
+#   file_path <- file.path(mzml_folder, file_name)
 #   # Load mzML file using xcmsRaw
 #   raw_data <- xcmsRaw(file_name)
-# 
+#
 #   # Calculate the m/z tolerance
 #   mz_tol <- (ppm / 1e6) * target_mz
 #   mz_range <- c(target_mz - mz_tol, target_mz + mz_tol)
-# 
+#
 #   # Only keep scans in the correct polarity
 #   positive_scans <- which(raw_data@polarity == polarity_label)  # 1 = positive
-# 
+#
 #   # Extract EIC for those scans
 #   eic <- rawEIC(raw_data, mzrange = mz_range)
-# 
+#
 #   # Create the EIC data frame, including the file_name
 #   eic_df <- data.frame(
 #     rt = raw_data@scantime[positive_scans] / 60,  # Convert to minutes
@@ -3351,10 +3342,10 @@ ggsave(
 #     file_name = rep(file_name, length(positive_scans))  # Add file_name to the data
 #   ) %>%
 #     mutate(average_intensity = rollmean(intensity, k = 3, fill = NA, align = "left"))
-# 
+#
 #   return(eic_df)
 # }
-# 
+#
 # # List of mzML files
 # files <- c(
 #   "241008-Exp-PAN-1-035-NoWash-NIST.mzML",
@@ -3370,10 +3361,10 @@ ggsave(
 #   "241008-Exp-PAN-1-022-08x-NIST.mzML",
 #   "241008-Exp-PAN-1-023-08x-NIST.mzML"
 # )
-# 
+#
 # ppm <- 2
 # target_mz <- 205.0972  # Tryptophan m/z value
-# 
+#
 # # Extract EICs for all files
 # eic_list <- lapply(files, function(file_name) {
 #   extract_eic(file_name, target_mz, ppm)
@@ -4206,12 +4197,10 @@ feat.intensity.threshold  <- 1e4 #(previous 1e6)
 signal.factor <- 3
 
 
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-setwd(filepath)
-file <- "PCI-peaksforR.xlsx" 
-data <- read_excel(file)
-data_meta <- read_excel(file, sheet = 2) %>%
-  dplyr::rename(rt = `RT [min]`) %>%
+Sup_info <- here("Data","Supplimentary Information_Excel_Sheets.xlsx")
+data4<- read_excel(Sup_info, sheet = "Area")
+
+data_meta <- read_excel(Sup_info, sheet = "Feature List") %>%
   mutate(
     Charge = case_when(
       Polarity == "POS" ~ 1,
@@ -4223,7 +4212,7 @@ data_meta <- read_excel(file, sheet = 2) %>%
 
 
 # --- Step 1: Pivot to long format ---
-data_feature_long <- data %>%
+data_feature_long <- data4 %>%
   pivot_longer(
     cols = starts_with("X"),
     names_to = "Feature",
@@ -4232,9 +4221,7 @@ data_feature_long <- data %>%
   inner_join(
     data_meta,
     by = c("Feature" = "Compound #")
-  ) %>%
-  select(-DP, -"Relative precision (%)", -"LOD")
-
+  )
 # --- Step 2: Identify duplicated features (same intensity) ---
 dup_features <- data_feature_long %>%
   group_by(Intensity) %>%
@@ -5329,7 +5316,7 @@ ggsave(
 # eic_df <- bind_rows(all_eics)
 
 #saveRDS(eic_df, file = "eic_df_newions.rds")
-largelist_contaminants <- readRDS("eic_df_newions.rds")
+largelist_contaminants <- readRDS(here("Data","eic_df_newions.rds"))
 
 summed_signals <- largelist_contaminants %>%
   group_by(file, rt) %>%
@@ -5656,19 +5643,16 @@ ggsave(
 
 ```
 
-## Figure SI-6: Injecion time plot
+## Figure SI-6: Injection time plot
 
-### 2data
+### Data
 
 ```{r}
-#Change dir
-filepath <- "C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN"
-setwd(filepath)
-getwd()
-list.files()
 
 # Load the mzML file
-file_path <- "241008-Exp-PAN-1-035-NoWash-NIST.mzML"
+file_path <- file.path(
+  mzml_folder,
+"241008-Exp-PAN-1-035-NoWash-NIST.mzML")
 raw_data <- xcmsRaw(file_path)
 raw_data <- readMSData(file_path, mode = "onDisk")
 
@@ -5753,13 +5737,9 @@ ggsave(
 ### Data and Plot:
 
 ```{r}
-filepath <- "C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN"
-setwd(filepath)
-getwd()
-list.files()
-
 # Load the mzML file
-file_nowash <- "241008-Exp-PAN-1-035-NoWash-NIST.mzML"
+file_nowash <- file.path(
+  mzml_folder,"241008-Exp-PAN-1-035-NoWash-NIST.mzML")
 
 if (!exists("raw_data_glu")) {
   raw_data_glu <- xcmsRaw(file_nowash)
@@ -6024,11 +6004,6 @@ plot_worsened <- ggplot(df_worsened) +
 plot_all <- plot_improved / plot_worsened
 plot_all
 
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-
-# Create subfolder "PCI ME Figures" inside it
-output_dir <- file.path(filepath, "PCI ME Figures")
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Save PNG
 ggsave(
@@ -6186,9 +6161,6 @@ ggsave(
 
 ```{r}
 
-library(dplyr)
-library(ggplot2)
-library(patchwork)
 
 # -------------------------------
 # ---- PLOT B: Zoomed-In ME -----
@@ -6197,7 +6169,7 @@ library(patchwork)
 # ---- FIRST PLOT (RED) ----
 Blank.selection.1 <- summary_table_1 %>%
   filter(Comparison == "NIST / Solvent",
-         Wash == "Unwashed PLR",
+         Wash == "PLR unwashed",
          between(avg_time, 0, 10)
   ) %>%
   ggplot(aes(x = avg_time, y = ME_NS_mean)) +
@@ -6220,7 +6192,7 @@ Blank.selection.1 <- summary_table_1 %>%
 # ---- SECOND PLOT (GREEN) ----
 Blank.selection.2 <- summary_table_2 %>%
   filter(Comparison == "NIST / Solvent",
-         Wash == "Unwashed PLR",
+         Wash == "PLR unwashed",
          between(avg_time, 0, 10)
   ) %>%
   ggplot(aes(x = avg_time, y = ME_NS_mean)) +
@@ -6262,8 +6234,6 @@ ggsave(
 
 ```{r}
 
-filepath <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts"
-setwd(filepath)
 # ============================
 # 1. Constants
 # ============================
