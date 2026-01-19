@@ -1702,8 +1702,8 @@ ggsave(
 ### Date and Plot:
 
 ```{r}
-Sup_info <- here("Data","Supplimentary Information_Excel_Files.xlsx")
-data3<- read_excel(Sup_info, sheet = "Annotations")
+Sup_info <- here("Data","Supplimentary Information_Excel_Sheets.xlsx")
+data3<- read_excel(Sup_info, sheet = "Feature List")
 
 peak_table1 <- data3 %>%
   dplyr::rename(peak_id = "Compound #") %>% 
@@ -2034,8 +2034,8 @@ print(head(final_df))
 
 ```{r}
 
-Sup_info <- here("Data","Supplimentary Information_Excel_Files.xlsx")
-data4<- read_excel(Sup_info, sheet = "Peak Areas")
+Sup_info <- here("Data","Supplimentary Information_Excel_Sheets.xlsx")
+data4<- read_excel(Sup_info, sheet = "Area")
 
 # Step 1: Extract "Compound #", homologue_id, and molecular_formula from merged_df
 compound_info <- merged_df %>%
@@ -3198,7 +3198,7 @@ ggsave(
 )
 ```
 
-## FIgure 11:
+## Figure 11:
 
 ### Data + Plot
 
@@ -6178,65 +6178,6 @@ ggsave(
   compression = "lzw"
 )
   
-```
-
-```{r}
-write_files_to_excel <- function(files, sheet_names = NULL, out_file = "combined_output.xlsx") {
-  
-  # If sheet names not provided, use file names without extension
-  if (is.null(sheet_names)) {
-    sheet_names <- tools::file_path_sans_ext(basename(files))
-  }
-  
-  # Check sheet names length
-  if (length(sheet_names) != length(files)) {
-    stop("sheet_names must be the same length as files.")
-  }
-  
-  df_list <- list()
-  
-  for (i in seq_along(files)) {
-    file <- files[i]
-    ext <- tools::file_ext(file)
-    
-    # Detect Excel files
-    if (ext %in% c("xlsx", "xls")) {
-      
-      # Special rule:
-      if (basename(file) == "LC_Final results_ver12-Exp7-PCI.xlsx") {
-        df <- read_excel(file, sheet = "Meta")
-      } else {
-        df <- read_excel(file)
-      }
-      
-    } else if (ext == "tsv") {
-      df <- read.delim(file)
-    } else if (ext == "csv") {
-      df <- read.csv(file)
-    } else {
-      stop(paste("Unsupported file type:", ext))
-    }
-    
-    df_list[[sheet_names[i]]] <- df
-  }
-  
-  write_xlsx(df_list, out_file)
-  message("Excel file written: ", out_file)
-}
-
-setwd("C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts")
-
-files <- c(
-  "merged_class_df.xlsx",
-  "LC_Final results_ver12-Exp7-PCI.xlsx",
-  "PCI-peaksforR.xlsx"
-  )
-
-# Optional custom sheet names
-sheet_names <- c("MetaResults", "Peaks","Homologue Series")
-
-write_files_to_excel(files, sheet_names, out_file = "Supplimentary Information_Excel_Files.xlsx")
-
 ```
 
 ## Graphical Abstract
