@@ -66,10 +66,11 @@ setwd("C:/Users/DanielMalheiro/Clinical Microbiomics/Teamwebsted - MS-Omics Team
 
 #set output for all figures
 #output_dir <- here("Figures")
-output_dir <- "C:/Users/DanielMalheiro/OneDrive - Clinical Microbiomics/Documents/R scripts/PCI ME Figures"
+output_dir <- "C:/Users/DanielMalheiro/Clinical Microbiomics/Teamwebsted - MS-Omics Team Folder/Daniel/PhD/Manuscript/Deliverables"
 
 #Set directory for mzML files, downloaded through https://www.ebi.ac.uk/metabolights/editor/MTBLS13682
-mzml_folder <- "C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN"
+mzml_folder <- #"~/mzML-PAN"
+  "C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN"
 
 ```
 
@@ -297,7 +298,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 ggsave(
@@ -306,7 +307,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -554,7 +555,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 # Save TIFF 
@@ -564,7 +565,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -860,7 +861,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 # Save as TIFF
@@ -870,7 +871,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -1474,7 +1475,7 @@ ggsave(
   width = 20,
   height = 20,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 # Save TIFF
@@ -1484,7 +1485,7 @@ ggsave(
   width = 20,
   height = 20,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -1686,7 +1687,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 # Save TIFF
@@ -1696,7 +1697,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -1875,7 +1876,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 # Save TIFF
@@ -1885,7 +1886,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -2617,7 +2618,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 # Save TIFF
@@ -2627,7 +2628,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -2772,7 +2773,7 @@ ggsave(
   width = 20,
   height = 10,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 # TIFF
@@ -2782,7 +2783,7 @@ ggsave(
   width = 20,
   height = 10,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -3180,7 +3181,7 @@ ggsave(
   width = 20,
   height = 10,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 # Save TIFF
@@ -3190,7 +3191,7 @@ ggsave(
   width = 20,
   height = 10,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -3295,7 +3296,7 @@ ggsave(
   width = 20,
   height = 10,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 # Save TIFF
@@ -3305,7 +3306,7 @@ ggsave(
   width = 20,
   height = 10,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -3892,7 +3893,7 @@ ggsave(
   width = 20,
   height = 20,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 # Save TIFF
@@ -3902,7 +3903,7 @@ ggsave(
   width = 20,
   height = 20,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -4915,7 +4916,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 ggsave(
@@ -4924,7 +4925,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -5226,8 +5227,8 @@ solvent_leucine <- long_data %>%
     axis.line = element_line(color = "black"),
     axis.ticks = element_line(color = "black"),
     panel.grid = element_blank(),
-    strip.text = element_text(size = 12),
-    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+    strip.text = element_text(size = 10),
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5)
   )
 
 print(solvent_leucine)
@@ -5236,14 +5237,14 @@ print(solvent_leucine)
 ggsave(
   filename = file.path(output_dir, "Figure_SI-1 Article.png"),
   plot = solvent_leucine,
-  width = 20, height = 20, units = "cm", dpi = 600
+  width = 20, height = 20, units = "cm", dpi = 1000
 )
 
 ggsave(
   filename = file.path(output_dir, "Figure_SI-1 Article.tiff"),
   plot = solvent_leucine,
   width = 20, height = 20, units = "cm",
-  dpi = 600, device = "tiff", compression = "lzw"
+  dpi = 1000, device = "tiff", compression = "lzw"
 )
 
 ```
@@ -5372,11 +5373,11 @@ allinter <- summed_signals %>%
     panel.grid = element_blank(),
     axis.line = element_line(color = "black"),
     axis.ticks = element_line(color = "black"),
-    strip.text = element_text(size = 9, face = "bold"),  # smaller strip text for space
-    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
-    axis.title = element_text(face = "bold")
+    strip.text = element_text(size = 8,
+    #plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    #axis.title = element_text(face = "bold")
   )
-
+)
 # Print the plot
 print(allinter)
 
@@ -5386,14 +5387,14 @@ print(allinter)
 ggsave(
   filename = file.path(output_dir, "Figure_SI-3 Article.png"),
   plot = allinter,
-  width = 20, height = 20, units = "cm", dpi = 600
+  width = 20, height = 20, units = "cm", dpi = 1000
 )
 
 ggsave(
   filename = file.path(output_dir, "Figure_SI-3 Article.tiff"),
   plot = allinter,
   width = 20, height = 20, units = "cm",
-  dpi = 600, device = "tiff", compression = "lzw"
+  dpi = 1000, device = "tiff", compression = "lzw"
 )
 
 
@@ -5522,14 +5523,14 @@ box_sig_plot
 ggsave(
   filename = file.path(output_dir, "Figure_SI-4 Article.png"),
   plot = box_sig_plot,
-  width = 20, height = 20, units = "cm", dpi = 600
+  width = 20, height = 20, units = "cm", dpi = 1000
 )
 
 ggsave(
   filename = file.path(output_dir, "Figure_SI-4 Article.tiff"),
   plot = box_sig_plot,
   width = 20, height = 20, units = "cm",
-  dpi = 600, device = "tiff", compression = "lzw"
+  dpi = 1000, device = "tiff", compression = "lzw"
 )
 
 
@@ -5626,7 +5627,7 @@ ggsave(
   width = 20,
   height = 10,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 # Save TIFF
@@ -5636,7 +5637,7 @@ ggsave(
   width = 20,
   height = 10,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -5716,7 +5717,7 @@ ggsave(
   width = 20,
   height = 10,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 # Save TIFF
@@ -5726,7 +5727,7 @@ ggsave(
   width = 20,
   height = 10,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -5830,7 +5831,7 @@ ggsave(
   width = 20,
   height = 10,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 ggsave(
@@ -5839,7 +5840,7 @@ ggsave(
   width = 20,
   height = 10,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -6012,7 +6013,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 # Save TIFF
@@ -6022,7 +6023,7 @@ ggsave(
   width = 20,
   height = 15,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -6138,7 +6139,7 @@ ggsave(
   width = 20,
   height = 25,
   units = "cm",
-  dpi = 600
+  dpi = 1000
 )
 
 # Save TIFF
@@ -6148,7 +6149,7 @@ ggsave(
   width = 20,
   height = 25,
   units = "cm",
-  dpi = 600,
+  dpi = 1000,
   device = "tiff",
   compression = "lzw"
 )
@@ -6224,7 +6225,7 @@ ggsave(
   plot = Blank.correction,
   width = 8,
   height = 4,
-  dpi = 600,
+  dpi = 1000,
   bg = "white"
 )
 
@@ -6371,7 +6372,7 @@ ggsave(
   plot = mass_simulation_plot,
   width = 8,
   height = 4,
-  dpi = 600,
+  dpi = 1000,
   bg = "white"
 )
 ```
@@ -6508,7 +6509,7 @@ ggsave(
   plot = plot_nowash_dilution,
   width = 8,
   height = 4,
-  dpi = 600,
+  dpi = 1000,
   bg = "white"
 )
 ```
@@ -6663,7 +6664,7 @@ ggsave(
   plot = MF_correction,
   width = 8,
   height = 4,
-  dpi = 600,
+  dpi = 1000,
   bg = "white"
 )
 
