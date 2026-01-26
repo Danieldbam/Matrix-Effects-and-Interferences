@@ -14,7 +14,6 @@ editor_options:
 
 ## Reproduce the computational environment
 install.packages("renv", ask = FALSE)
-renv::restore
 ```
 
 # Load libraries
@@ -65,8 +64,7 @@ library(tinytex)
 setwd("C:/Users/DanielMalheiro/Clinical Microbiomics/Teamwebsted - MS-Omics Team Folder/Daniel/PhD/Manuscript/Github/Matrix-Effects-and-Interferences")
 
 #set output for all figures
-#output_dir <- here("Figures")
-output_dir <- "C:/Users/DanielMalheiro/Clinical Microbiomics/Teamwebsted - MS-Omics Team Folder/Daniel/PhD/Manuscript/Deliverables"
+output_dir <- here("Figures")
 
 #Set directory for mzML files, downloaded through https://www.ebi.ac.uk/metabolights/editor/MTBLS13682
 mzml_folder <- #"~/mzML-PAN"
@@ -1521,7 +1519,7 @@ scan787_data <- tibble(mz = mz_vals, intensity = intensities) %>%
 
 ```{r}
 
-# Identify peaks ~1 m/z apart using simple local maxima logic
+# identify peaks ~1 m/z apart using simple local maxima logic
 annotated_peaks <- scan787_data %>%
   mutate(diff = c(NA, diff(mz))) %>%
   filter(
@@ -1708,16 +1706,16 @@ ggsave(
 ### Date and Plot:
 
 ```{r}
-Sup_info <- here("Data","Supplimentary Information_Excel_Sheets.xlsx")
+Sup_info <- here("Data","Supplementary Data.xlsx")
 data3<- read_excel(Sup_info, sheet = "Homologue Series")
 
 peak_table1 <- data3 %>%
-  select(peak_id, mz, rt) %>%  
+  select(id, mz, rt) %>%  
   mutate(
     intensity = as.numeric(row_number()), 
     rt = as.numeric(rt * 60),
-    peak_id = str_remove(peak_id, "X"),      
-    peak_id = as.numeric(peak_id) 
+    id = str_remove(id, "X"),      
+    id = as.numeric(id) 
   ) %>%
   arrange(rt, mz) 
   
@@ -1775,8 +1773,9 @@ merged_df <- difference_left_join(
     select(
       mz, rt, Formula, "Annotation level", Name, Adduct,
       Polarity,
-      #Identifier,
-      "Compound #", SMILES, CSID, "InChI Key"
+      #identifier,
+      #"Compound #",
+      SMILES, CSID, "InChI Key"
     ),
   by = c("mz", "rt"),  # Match `mz` exactly and `rt` approximately
   max_dist = 0.011  ) %>%
@@ -1834,7 +1833,7 @@ g2tax <- ggplot(merged_df, aes(x = rt, y = mz, group = homologue_id)) +
   geom_point(aes(shape = molecular_formula, color = homologue_id),
              size = 4, alpha = 1, stroke = 0.3) +
 
-  scale_color_manual(values = color_map, name = "Homologue ID  ") +
+  scale_color_manual(values = color_map, name = "Homologue id  ") +
   scale_shape_manual(values = shape_map, name = "Repeating Unit") +
 
   labs(
@@ -2035,35 +2034,42 @@ print(head(final_df))
 
 ```{r}
 
-Sup_info <- here("Data","Supplimentary Information_Excel_Sheets.xlsx")
-data4<- read_excel(Sup_info, sheet = "Area")
+Sup_info <- here("Data","Supplementary Data.xlsx")
+data4<- read_excel(Sup_info, sheet = "Peak Areas")
 
-# Step 1: Extract "Compound #", homologue_id, and molecular_formula from merged_df
+# Step 1: Extract "id", homologue_id, and molecular_formula from merged_df
 compound_info <- merged_df %>%
-  select(`Compound #`, homologue_id, molecular_formula, mz) %>%
+  select(peak_id,homologue_id, molecular_formula, mz) %>%
   unique() %>%
   na.omit()  # Remove NA values
+
+compound_info <- compound_info %>%
+  mutate(peak_id = sprintf("X%05d", peak_id))
 
 # Step 2: Select the first 5 columns in data
 first_five_cols <- data4 %>% select(1:5)
 
-# Step 3: Select only columns in data that match the Compound # list
+# Step 3: Select only columns in data that match the id list
+peak_cols <- names(data4)[grepl("^X\\d{5,}$", names(data4))]
+
 selected_compound_cols <- data4 %>%
-  select(all_of(intersect(names(data4), compound_info$`Compound #`)))
+  select(any_of(intersect(peak_cols, compound_info$peak_id)))
 
 # Step 4: Combine the first 5 columns with selected compound columns
 filtered_data <- bind_cols(first_five_cols, selected_compound_cols)
 
-# Step 5: Convert to long format for merging with homologue_id and molecular_formula
 long_data_niko <- filtered_data %>%
-  pivot_longer(cols = starts_with("X"),  # Convert wide to long format
-               names_to = "Compound #",
-               values_to = "Intensity") %>%
-  left_join(compound_info, by = "Compound #")  # Merge with homologue_id & molecular_formula
+  pivot_longer(
+    cols = starts_with("X"),
+    names_to = "id",
+    values_to = "Intensity"
+  ) %>%
+  left_join(compound_info, by = c("id" = "peak_id"))
+
 
 # Step 6: Sum Intensity for each homologue_id and molecular_formula while keeping other columns
 summarized_data <- long_data_niko %>%
-  group_by(`Raw name`, Sequence, Replicate, Wash, Sample, homologue_id, molecular_formula) %>%
+  group_by(`Raw file name`, Sequence, Replicate, Wash, Sample, homologue_id, molecular_formula) %>%
   summarise(Intensity = sum(Intensity, na.rm = TRUE), .groups = "drop")  # Sum intensity & remove NA
 
 # 🔹 Preprocess and Transform Data
@@ -2108,7 +2114,7 @@ rownames(heatmap_matrix) <- paste(
 final_df$homologue_id 
 matched_ids <- match(colnames(heatmap_matrix), final_df$homologue_id) 
 
-# Original IDs 
+# Original ids 
 homologue_ids <- colnames(heatmap_matrix) 
 
 # Get class and parent info 
@@ -2167,7 +2173,7 @@ heatmap_gtable <- heatmap_plot$gtable
 
 # 🔹 Top label: near top-right (not fully right)
 top_label <- textGrob(
-  "Homologue Series ID | Direct Parent",
+  "Homologue Series id | Direct Parent",
   x = unit(0.65, "npc"), y = unit(1, "npc"),
   just = c("left", "top"),
   gp = gpar(fontsize = 14, fontface = "bold")
@@ -3736,7 +3742,7 @@ integrated_data_long_wide <- integrated_data_wide %>%
   )
 
 # ===============================
-# Step 4: Filter + relabel logic (IDEMPOTENT & SAFE)
+# Step 4: Filter + relabel logic (idEMPOTENT & SAFE)
 # ===============================
 integrated_data_long_wide_filtered <- integrated_data_long_wide %>%
   
@@ -4198,8 +4204,8 @@ feat.intensity.threshold  <- 1e4 #(previous 1e6)
 signal.factor <- 3
 
 
-Sup_info <- here("Data","Supplimentary Information_Excel_Sheets.xlsx")
-data4<- read_excel(Sup_info, sheet = "Area")
+Sup_info <- here("Data","Supplementary Data.xlsx")
+data4<- read_excel(Sup_info, sheet = "Peak Areas")
 
 data_meta <- read_excel(Sup_info, sheet = "Feature List") %>%
   mutate(
@@ -4221,9 +4227,9 @@ data_feature_long <- data4 %>%
   ) %>%
   inner_join(
     data_meta,
-    by = c("Feature" = "Compound #")
+    by = c("Feature" = "id")
   )
-# --- Step 2: Identify duplicated features (same intensity) ---
+# --- Step 2: identify duplicated features (same intensity) ---
 dup_features <- data_feature_long %>%
   group_by(Intensity) %>%
   filter(n_distinct(Feature) > 1) %>%    # intensity shared by multiple features
@@ -4244,10 +4250,10 @@ nist_data <- data_feature_long %>%
   #filter(!is.na(Name)) #(previously removed the NA)
 
 
-# Extract the Compound # values to exclude from homolgue series, exclusde those in homoglogue_id 3 and 6
+# Extract the id values to exclude from homolgue series, exclusde those in homoglogue_id 3 and 6
 exclude_compounds <- merged_df %>%
   filter(!homologue_id %in% c(3, 6)) %>%
-  pull(`Compound #`)
+  pull(`peak_id`)
 
 # --- Step 4: Compute global RSD across ALL Washes (for each feature) ---
 rsd_global <- nist_data %>%
@@ -4298,8 +4304,8 @@ rsd_per_wash <- nist_data %>%
     by = "Feature"
   ) %>%
   left_join(
-    data_meta %>% select(`Compound #`, Name, rt, mz, Adduct, Charge),
-    by = c("Feature" = "Compound #")
+    data_meta %>% select(`id`, Name, rt, mz, Adduct, Charge),
+    by = c("Feature" = "id")
   ) %>%
   filter(Charge == 1)
 
@@ -5175,8 +5181,8 @@ wash_means_pub <- wash_subset %>%
 
 kable(
   wash_means_pub,
-  caption = "Table SI-4. Contaminant intensity across PLR wash conditions. Values shown as mean and standard deviation for each homologue series ID.",
-  col.names = c("Homologue ID", "Wash Condition", "Sample Count (n)", "Mean Intensity", "SD Intensity"),
+  caption = "Table SI-4. Contaminant intensity across PLR wash conditions. Values shown as mean and standard deviation for each homologue series id.",
+  col.names = c("Homologue id", "Wash Condition", "Sample Count (n)", "Mean Intensity", "SD Intensity"),
   align = "c",
   booktabs = TRUE,
   format = "html"   # ensures nice formatting when copied to Word
@@ -5425,11 +5431,11 @@ wash_subset <- summarized_data %>%
     # ⭐ New readable facet labels
     homologue_id = factor(homologue_id,
                           levels = c(1,16,17,18,19),
-                          labels = c("Homologue ID 1",
-                                     "Homologue ID 16",
-                                     "Homologue ID 17",
-                                     "Homologue ID 18",
-                                     "Homologue ID 19"))
+                          labels = c("Homologue id 1",
+                                     "Homologue id 16",
+                                     "Homologue id 17",
+                                     "Homologue id 18",
+                                     "Homologue id 19"))
   )
 
 #---------------------------------------------
@@ -5547,7 +5553,7 @@ vline_positions22only <- c(4.375, 4.835)
 plot_matrix_effect_zoom_22xonly <- summary_table_2 %>%
   filter(
     Comparison == "NIST / Solvent",
-    Wash == "22x wash PLR",
+    Wash == "PLR 22x wash",
     between(avg_time, zoomlimits22only[1], zoomlimits22only[2])
   ) %>%
   ggplot(aes(x = avg_time, y = ME_NS_mean)) +
