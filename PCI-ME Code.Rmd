@@ -2028,9 +2028,6 @@ final_df <- most_frequent_df %>%
 # Display the result
 print(head(final_df))
 
-# Export cleaned data to CSV (Optional)
-write.csv(parsed_data, "cleaned_classification_data.csv", row.names = FALSE)
-
 # Step 1: Count occurrences of class and direct_parent for each homologue_id, excluding NA values
 most_frequent_df <- merged_class_df %>%
   filter(!is.na(class) & !is.na(direct_parent)) %>%  # Remove NA values
