@@ -1,5 +1,5 @@
 ---
-title: "Publication Ready PCI ME Article"
+title: "Reproducibility and Code Availability for PCI Analysis"
 format: html
 editor: visual
 editor_options: 
@@ -5128,8 +5128,6 @@ kable(
 
 ## Table SI-3
 
-manually made
-
 ```{r}
 
 # Create table
@@ -5147,7 +5145,7 @@ literature_table <- tribble(
 kable(
   literature_table,
   format = "html",
-  caption = "Table SI-3. Overview of different flowrates, analytes and analyte concentrations used for PCI experiments in literature."
+  caption = "Table SI-3. Overview of flow rates, analytes, and analyte concentrations used for PCI experiments in literature."
 ) %>%
   kable_styling(full_width = FALSE)
 
@@ -5198,7 +5196,7 @@ wash_means_pub <- wash_subset %>%
 
 kable(
   wash_means_pub,
-  caption = "Table SI-4. Contaminant intensity across PLR wash conditions. Values shown as mean and standard deviation for each homologue series id.",
+  caption = "Table SI-4. Contaminant intensity across PLR wash conditions. Values shown as mean and standard deviation for each homologue series ID.",
   col.names = c("Homologue id", "Wash Condition", "Sample Count (n)", "Mean Intensity", "SD Intensity"),
   align = "c",
   booktabs = TRUE,
