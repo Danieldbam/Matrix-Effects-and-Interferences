@@ -3,3 +3,7 @@
 .RData
 .Ruserdata
 .RDataTmp
+.Blank_correction.png
+.Dilution.png
+.MF_correction.png
+.mass_simulation_plot.png
