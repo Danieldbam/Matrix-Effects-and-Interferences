@@ -760,6 +760,14 @@ annot_PLR <- summary_table_F %>%
 
 max_intensity <- max(summary_table_F$Matrix_Effect, na.rm = TRUE)
 
+asterisk_df <- data.frame(
+  avg_time = 4.5,
+  Matrix_Effect = 20,
+  label = "*",
+  Wash = "PPT",                  # CHANGE if needed
+  Compound_plot = "Leucine[d10]"  # MUST match facet value exactly
+)
+
 # ===============================
 # Plot
 # ===============================
@@ -784,7 +792,7 @@ Figure.3 <- ggplot(summary_table_F, aes(x = avg_time)) +
     "rect",
     xmin = 7.5, xmax = 14,
     ymin = -Inf, ymax = Inf,
-    fill = "gray80",
+    fill = "gray90",
     alpha = 0.25
   ) +
 
@@ -816,6 +824,18 @@ Figure.3 <- ggplot(summary_table_F, aes(x = avg_time)) +
     size = 4,
     fontface = "bold",
     inherit.aes = FALSE
+  ) +
+
+  # -------------------------------
+  # GLOBAL ASTERISK (ALL PANELS)
+  # -------------------------------
+  annotate(
+    "text",
+    x = 4.7,
+    y = 10,
+    label = "*",
+    size = 7,
+    fontface = "bold"
   ) +
 
   # Facets
