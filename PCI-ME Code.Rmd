@@ -2190,7 +2190,7 @@ heatmap_gtable <- heatmap_plot$gtable
 
 # 🔹 Top label: near top-right (not fully right)
 top_label <- textGrob(
-  "Homologue Series id | Direct Parent",
+  "Homologue Series ID | Direct Parent",
   x = unit(0.65, "npc"), y = unit(1, "npc"),
   just = c("left", "top"),
   gp = gpar(fontsize = 14, fontface = "bold")
@@ -2198,7 +2198,7 @@ top_label <- textGrob(
 
 # 🔹 Bottom-center label
 bottom_label <- textGrob(
-  "Sequence number | Wash | Sample",
+  "Sequence Number | Wash | Sample",
   gp = gpar(fontsize = 14, fontface = "bold")
 )
 
@@ -2255,7 +2255,7 @@ tiff(
   width = 28,
   height = 20,
   units = "cm",
-  res = 600,
+  res = 1000,
   compression = "lzw"
 )
 
@@ -2301,7 +2301,7 @@ png(
   width = 28,
   height = 20,
   units = "cm",
-  res = 600
+  res = 1000
 )
 
 # Repeat drawing for PNG
@@ -5158,8 +5158,9 @@ kable(
 # 1. Filter and recode wash labels
 #---------------------------------------------
 wash_subset <- summarized_data %>%
-  filter(homologue_id %in% c(1,16,17,18,19),
+  filter(homologue_id %in% c(1,14,16,17,18,19),
          Sequence <= 45,
+         Sample == "Blank",
          Wash %in% c("NoWash", "22x", "08x", "04x")) %>%
   mutate(
     Wash = recode(Wash,
@@ -5173,8 +5174,9 @@ wash_subset <- summarized_data %>%
     
     # ⭐ New readable facet labels
     homologue_id = factor(homologue_id,
-                          levels = c(1,16,17,18,19),
+                          levels = c(1,14,16,17,18,19),
                           labels = c("1",
+                                     "14",
                                      "16",
                                      "17",
                                      "18",
@@ -5196,7 +5198,7 @@ wash_means_pub <- wash_subset %>%
 
 kable(
   wash_means_pub,
-  caption = "Table SI-4. Contaminant intensity across PLR wash conditions. Values shown as mean and standard deviation for each homologue series ID.",
+  caption = "Table SI-4. Summary statistics of treatment-derived contaminant intensities across PLR wash conditions. Values are reported as mean ± standard deviation for each homologue series ID, calculated from blank samples for PLR Unwashed, PLR 4× Wash, PLR 8× Wash, and PLR 22× Wash conditions.",
   col.names = c("Homologue id", "Wash Condition", "Sample Count (n)", "Mean Intensity", "SD Intensity"),
   align = "c",
   booktabs = TRUE,
@@ -5430,9 +5432,9 @@ ggsave(
 # 1. Filter and recode wash labels
 #---------------------------------------------
 wash_subset <- summarized_data %>%
-  filter(homologue_id %in% c(1,16,17,18,19),
+  filter(homologue_id %in% c(1,14,16,17,18,19),
          Sequence <= 45,
-         #Sample == "Blank",
+         Sample == "Blank",
          Wash %in% c("NoWash", "22x", "08x", "04x")) %>%
   mutate(
     Wash = recode(Wash,
@@ -5445,13 +5447,18 @@ wash_subset <- summarized_data %>%
                              "PLR 8x Wash", "PLR 22x Wash")),
     
     # ⭐ New readable facet labels
-    homologue_id = factor(homologue_id,
-                          levels = c(1,16,17,18,19),
-                          labels = c("Homologue id 1",
-                                     "Homologue id 16",
-                                     "Homologue id 17",
-                                     "Homologue id 18",
-                                     "Homologue id 19"))
+    homologue_id = factor(
+      homologue_id,
+      levels = c(1, 14, 16, 17, 18, 19),
+      labels = c(
+        "Homologue id 1",
+        "Homologue id 14",
+        "Homologue id 16",
+        "Homologue id 17",
+        "Homologue id 18",
+        "Homologue id 19"
+      )
+    )
   )
 
 #---------------------------------------------
