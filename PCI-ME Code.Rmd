@@ -5199,7 +5199,7 @@ wash_means_pub <- wash_subset %>%
 kable(
   wash_means_pub,
   caption = "Table SI-4. Summary statistics of treatment-derived contaminant intensities across PLR wash conditions. Values are reported as mean ± standard deviation for each homologue series ID, calculated from blank samples for PLR Unwashed, PLR 4× Wash, PLR 8× Wash, and PLR 22× Wash conditions.",
-  col.names = c("Homologue id", "Wash Condition", "Sample Count (n)", "Mean Intensity", "SD Intensity"),
+  col.names = c("Homologue ID", "Wash Condition", "Sample Count (n)", "Mean Intensity", "SD Intensity"),
   align = "c",
   booktabs = TRUE,
   format = "html"   # ensures nice formatting when copied to Word
@@ -5424,7 +5424,115 @@ ggsave(
 
 ```
 
-## Figure SI-4. Effect of PLR wash intensity on contaminant signals
+## Figure SI-4. Over laps of contaminant ions and ME
+
+```{r}
+# Define plot range and lines
+zoomlimits22only <- c(3, 6)
+vline_positions22only <- c(4.375, 4.835)
+
+# ---- PLOT A: Zoomed-In Matrix Effect for 22x ----
+plot_matrix_effect_zoom_22xonly <- summary_table_2 %>%
+  filter(
+    Comparison == "NIST / Solvent",
+    Wash == "PLR 22x wash",
+    between(avg_time, zoomlimits22only[1], zoomlimits22only[2])
+  ) %>%
+  ggplot(aes(x = avg_time, y = ME_NS_mean)) +
+  geom_ribbon(
+    aes(ymin = ME_NS_lower, ymax = ME_NS_upper),
+    fill = "red", alpha = 0.2
+  ) +
+  geom_line(color = "red", size = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", size = 0.7) +
+  geom_vline(xintercept = vline_positions22only, linetype = "dotted", color = "black", size = 0.8) +
+  coord_cartesian(ylim = c(global_min_y, global_max_y)) +
+  scale_x_continuous(
+    breaks = seq(3, 6, by = 1),
+      ) +
+  labs(
+    #title = "Matrix Effect (NIST / Solvent) – 22x only",
+    x = NULL,
+    y = "Matrix Effect (%)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_blank(),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black")
+  )
+
+# ---- PLOT B: Interfering Ions (Summed Trace) for NIST-22x ----
+average_nist_22x <- summed_signals %>%
+  filter(
+    Sequence %in% 8:45,
+    Sample == "NIST", Wash == "22x",
+    between(rt, zoomlimits22only[1], zoomlimits22only[2]),
+    Replicate == 1
+  ) %>%
+  group_by(scan) %>%
+  summarise(
+    total_intensity = sum(total_intensity, na.rm = TRUE),
+    rt = mean(rt),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    rolling_intensity = rollmean(total_intensity, k = 9, fill = NA, align = "right")
+  )
+
+nist_22x_rep <- ggplot(average_nist_22x, aes(x = rt)) +
+  geom_line(aes(y = rolling_intensity), color = "blue", size = 0.8) +
+  geom_vline(xintercept = vline_positions22only, linetype = "dotted", color = "black", size = 0.8) +
+  scale_y_continuous(labels = scales::scientific) +
+  scale_x_continuous(
+    breaks = seq(3, 6, by = 1),
+      ) +
+  labs(
+    #title = "Summed Interfering Ion Signal",
+    x = "Retention Time (min)",
+    y = "Summed Intensity"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black")
+  )
+
+# ---- Combine A + B Vertically ----
+pub_ready_plot <- plot_matrix_effect_zoom_22xonly / nist_22x_rep
+
+# ---- Display ----
+print(pub_ready_plot)
+
+
+# Save PNG
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-4 Article.png"),
+  plot = pub_ready_plot,
+  width = 20,
+  height = 10,
+  units = "cm",
+  dpi = 1000
+)
+
+# Save TIFF
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-4 Article.tiff"),
+  plot = pub_ready_plot,
+  width = 20,
+  height = 10,
+  units = "cm",
+  dpi = 1000,
+  device = "tiff",
+  compression = "lzw"
+)
+
+```
+
+## Figure SI-5. Effect of PLR wash intensity on contaminant signals
 
 ```{r}
 
@@ -5550,126 +5658,18 @@ box_sig_plot
 #---------------------------------------------
 # Save
 ggsave(
-  filename = file.path(output_dir, "Figure_SI-4 Article.png"),
+  filename = file.path(output_dir, "Figure_SI-5 Article.png"),
   plot = box_sig_plot,
   width = 20, height = 20, units = "cm", dpi = 1000
 )
 
 ggsave(
-  filename = file.path(output_dir, "Figure_SI-4 Article.tiff"),
+  filename = file.path(output_dir, "Figure_SI-5 Article.tiff"),
   plot = box_sig_plot,
   width = 20, height = 20, units = "cm",
   dpi = 1000, device = "tiff", compression = "lzw"
 )
 
-
-```
-
-## Figure SI-5. Over laps of contaminant ions and ME
-
-```{r}
-# Define plot range and lines
-zoomlimits22only <- c(3, 6)
-vline_positions22only <- c(4.375, 4.835)
-
-# ---- PLOT A: Zoomed-In Matrix Effect for 22x ----
-plot_matrix_effect_zoom_22xonly <- summary_table_2 %>%
-  filter(
-    Comparison == "NIST / Solvent",
-    Wash == "PLR 22x wash",
-    between(avg_time, zoomlimits22only[1], zoomlimits22only[2])
-  ) %>%
-  ggplot(aes(x = avg_time, y = ME_NS_mean)) +
-  geom_ribbon(
-    aes(ymin = ME_NS_lower, ymax = ME_NS_upper),
-    fill = "red", alpha = 0.2
-  ) +
-  geom_line(color = "red", size = 0.8) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black", size = 0.7) +
-  geom_vline(xintercept = vline_positions22only, linetype = "dotted", color = "black", size = 0.8) +
-  coord_cartesian(ylim = c(global_min_y, global_max_y)) +
-  scale_x_continuous(
-    breaks = seq(3, 6, by = 1),
-      ) +
-  labs(
-    #title = "Matrix Effect (NIST / Solvent) – 22x only",
-    x = NULL,
-    y = "Matrix Effect (%)"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "none",
-    strip.text = element_blank(),
-    panel.grid = element_blank(),
-    axis.line = element_line(color = "black"),
-    axis.ticks = element_line(color = "black")
-  )
-
-# ---- PLOT B: Interfering Ions (Summed Trace) for NIST-22x ----
-average_nist_22x <- summed_signals %>%
-  filter(
-    Sequence %in% 8:45,
-    Sample == "NIST", Wash == "22x",
-    between(rt, zoomlimits22only[1], zoomlimits22only[2]),
-    Replicate == 1
-  ) %>%
-  group_by(scan) %>%
-  summarise(
-    total_intensity = sum(total_intensity, na.rm = TRUE),
-    rt = mean(rt),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    rolling_intensity = rollmean(total_intensity, k = 9, fill = NA, align = "right")
-  )
-
-nist_22x_rep <- ggplot(average_nist_22x, aes(x = rt)) +
-  geom_line(aes(y = rolling_intensity), color = "blue", size = 0.8) +
-  geom_vline(xintercept = vline_positions22only, linetype = "dotted", color = "black", size = 0.8) +
-  scale_y_continuous(labels = scales::scientific) +
-  scale_x_continuous(
-    breaks = seq(3, 6, by = 1),
-      ) +
-  labs(
-    #title = "Summed Interfering Ion Signal",
-    x = "Retention Time (min)",
-    y = "Summed Intensity"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.grid = element_blank(),
-    axis.line = element_line(color = "black"),
-    axis.ticks = element_line(color = "black")
-  )
-
-# ---- Combine A + B Vertically ----
-pub_ready_plot <- plot_matrix_effect_zoom_22xonly / nist_22x_rep
-
-# ---- Display ----
-print(pub_ready_plot)
-
-
-# Save PNG
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-5 Article.png"),
-  plot = pub_ready_plot,
-  width = 20,
-  height = 10,
-  units = "cm",
-  dpi = 1000
-)
-
-# Save TIFF
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-5 Article.tiff"),
-  plot = pub_ready_plot,
-  width = 20,
-  height = 10,
-  units = "cm",
-  dpi = 1000,
-  device = "tiff",
-  compression = "lzw"
-)
 
 ```
 
