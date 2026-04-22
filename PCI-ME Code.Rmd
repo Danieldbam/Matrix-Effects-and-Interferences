@@ -196,7 +196,7 @@ small_data <- long_data %>%
     Offset = 0.1 * (Flow_Rate_Rank - 1),
     Offset_Average = Normalized_Average + Offset
   ) %>%
-  filter(between(Times, 2, 6))
+  filter(between(Times, 0, 10))
 
 # Pressure transformation
 intensity_range <- range(small_data$Offset_Average, na.rm = TRUE)
@@ -2662,8 +2662,6 @@ ggsave(
 ### Data and Plot:
 
 ```{r}
-
-
 # ============================
 # 1. Constants
 # ============================
@@ -2672,68 +2670,143 @@ mz1 <- 204.1173
 mz2 <- 204.1230
 int1 <- 2e6
 int2 <- 22174204
+baseline <- 1e4
 
-resolutions <- c("60k" = 60000, "120k" = 120000)
-
-# Use SAME m/z values as the experimental data
 x_vals <- mass_spectrum_4$mz
 
 # ============================
-# 2. Gaussian Peak Function
+# 2. Gaussian Simulation
 # ============================
 
-generate_gaussian <- function(mz_center, intensity, resolution) {
-  fwhm <- mz_center / resolution
+gauss <- function(m, I, R) {
+  fwhm <- m / R
   sigma <- fwhm / 2.35482
-  intensity_vals <- intensity * exp(-(x_vals - mz_center)^2 / (2 * sigma^2))
-  return(intensity_vals)
+  I * exp(-(x_vals - m)^2 / (2 * sigma^2))
 }
 
-# ============================
-# 3. Simulation Function
-# ============================
+sim_60k <- data.frame(
+  mz = x_vals,
+  peak_204_1173 = gauss(mz1, int1, 60000),
+  peak_204_1230 = gauss(mz2, int2, 60000),
+  Resolution = "60k"
+)
 
-simulate_resolution <- function(res_label, resolution) {
-  peak1 <- generate_gaussian(mz1, int1, resolution)
-  peak2 <- generate_gaussian(mz2, int2, resolution)
-  total <- peak1 + peak2
-  
-  data.frame(
-    mz = x_vals,
-    peak_204_1173 = peak1,
-    peak_204_1230 = peak2,
-    combined = total,
-    Resolution = res_label
-  )
-}
+sim_120k <- data.frame(
+  mz = x_vals,
+  peak_204_1173 = gauss(mz1, int1, 120000),
+  peak_204_1230 = gauss(mz2, int2, 120000),
+  Resolution = "120k"
+)
 
-# ============================
-# 4. Run Simulations
-# ============================
-
-sim_60k  <- simulate_resolution("60k",  resolutions["60k"])
-sim_120k <- simulate_resolution("120k", resolutions["120k"])
-
-# Combine and reshape simulated data
 sim_all <- bind_rows(sim_60k, sim_120k) %>%
-  pivot_longer(cols = c("peak_204_1173", "peak_204_1230", "combined"),
+  mutate(combined = peak_204_1173 + peak_204_1230) %>%
+  pivot_longer(cols = c(peak_204_1173, peak_204_1230, combined),
                names_to = "Trace",
                values_to = "Intensity")
 
 # ============================
-# 5. Prepare Experimental Data
+# 3. Experimental Data
 # ============================
 
 mass_spectrum_combine <- mass_spectrum_4 %>%
-  select(-scan) %>%
-  dplyr::rename(Intensity = intensity) %>%
-  mutate(
-    Trace = "Experimental",
+  transmute(
+    mz,
+    Intensity = intensity,
+    Trace = "combined",
     Resolution = "Experimental"
   )
 
 # ============================
-# 6. Final Combined Dataset
+# 4. Interpolated FWHM
+# ============================
+
+calc_peak <- function(mz, int) {
+  peak_max <- max(int)
+  half <- baseline + (peak_max - baseline) / 2
+  apex <- which.max(int)
+  
+  left <- right <- NA
+  
+  for (i in apex:2) {
+    if (int[i] >= half && int[i-1] < half) {
+      left <- mz[i-1] + (half - int[i-1]) *
+        (mz[i] - mz[i-1]) / (int[i] - int[i-1])
+      break
+    }
+  }
+  
+  for (i in apex:(length(mz)-1)) {
+    if (int[i] >= half && int[i+1] < half) {
+      right <- mz[i] + (half - int[i]) *
+        (mz[i+1] - mz[i]) / (int[i+1] - int[i])
+      break
+    }
+  }
+  
+  fwhm <- right - left
+  c(peak_max, fwhm)
+}
+
+# ============================
+# 5. Resolution Calculation
+# ============================
+
+get_res <- function(df, label) {
+  mz <- df$mz
+  
+  p1 <- calc_peak(mz, df$peak_204_1173)
+  p2 <- calc_peak(mz, df$peak_204_1230)
+  
+  data.frame(
+    mz = c(mz1, mz2),
+    y = c(p1[1], p2[1]),
+    Resolution_val = c(mz1 / p1[2], mz2 / p2[2]),
+    Setting = label
+  )
+}
+
+res_all <- bind_rows(
+  get_res(sim_60k, "60k"),
+  get_res(sim_120k, "120k")
+)
+
+# --- experimental
+
+get_exp <- function(mz, int, center) {
+  idx <- mz >= (center - 0.01) & mz <= (center + 0.01)
+  calc_peak(mz[idx], int[idx])
+}
+
+m1 <- get_exp(mass_spectrum_4$mz, mass_spectrum_4$intensity, mz1)
+m2 <- get_exp(mass_spectrum_4$mz, mass_spectrum_4$intensity, mz2)
+
+res_exp <- data.frame(
+  mz = c(mz1, mz2),
+  y = c(m1[1], m2[1]),
+  Resolution_val = c(mz1 / m1[2], mz2 / m2[2]),
+  Setting = "Experimental"
+)
+
+# combine + format + ordering + filtering
+res_all <- bind_rows(res_all, res_exp) %>%
+  mutate(
+    Resolution_val = round(Resolution_val),
+    Resolution = recode(Setting,
+      "Experimental" = "Experimental Data",
+      "60k" = "60k Resolving Power",
+      "120k" = "120k Resolving Power"
+    ),
+    Resolution = factor(Resolution,
+      levels = c("Experimental Data",
+                 "60k Resolving Power",
+                 "120k Resolving Power")
+    ),
+    label = paste0("R = ", Resolution_val)
+  ) %>%
+filter(!(mz == mz1 & Resolution %in% c("Experimental Data", "60k Resolving Power")))
+
+# ============================
+# 6. Combined Dataset
 # ============================
 
 combined_simulation <- bind_rows(sim_all, mass_spectrum_combine) %>% 
@@ -2744,10 +2817,10 @@ combined_simulation <- bind_rows(sim_all, mass_spectrum_combine) %>%
       "60k" = "60k Resolving Power",
       "120k" = "120k Resolving Power"
     ),
-    Resolution = factor(Resolution, 
-                        levels = c("Experimental Data", 
-                                   "60k Resolving Power", 
-                                   "120k Resolving Power"))
+    Resolution = factor(Resolution,
+      levels = c("Experimental Data",
+                 "60k Resolving Power",
+                 "120k Resolving Power"))
   )
 
 # ============================
@@ -2756,13 +2829,13 @@ combined_simulation <- bind_rows(sim_all, mass_spectrum_combine) %>%
 
 mass_simulation_plot <- combined_simulation %>%
   ggplot(aes(x = mz, y = Intensity, color = Resolution)) +
-  geom_vline(xintercept = target_masses, linetype = "dashed", color = "black") +
+  geom_vline(xintercept = c(mz1, mz2), linetype = "dashed", color = "black") +
   geom_line(linewidth = 1) +
   facet_wrap(~Resolution) +
   scale_x_continuous(
     name = "Mass to Charge Ratio",
-    breaks = target_masses,
-    labels = label_number(digits = 6)
+    breaks = c(mz1, mz2),
+    labels = scales::label_number(digits = 6)
   ) +
   labs(
     x = "Mass to Charge Ratio",
@@ -2776,14 +2849,19 @@ mass_simulation_plot <- combined_simulation %>%
     axis.ticks = element_line(color = "black"),
     axis.text.x = element_text(angle = 45, hjust = 1),
     legend.position = "none",
-    strip.text = element_text(size = 12,
-                              #face = "bold"
-                              )
+    strip.text = element_text(size = 12)
+  ) +
+  geom_text(
+    data = res_all,
+    aes(x = mz, y = y, label = label),
+    inherit.aes = FALSE,
+    color = "black",
+    size = 4,
+    vjust = 0.6,
+    hjust = -0.1
   )
 
 print(mass_simulation_plot)
-
-
 ```
 
 ### Article Figure 9
@@ -5373,10 +5451,10 @@ summed_signals <- summed_signals %>%
 # Plot
 allinter <- summed_signals %>%
   filter(
-    rt >= 0 & rt <= 10, # previously 0 to 10
+    rt >= 0 & rt <= 10,
     !is.na(Wash),
-    Sequence %in% 8:45
-  ) %>%
+    Sequence %in% 8:45) %>%
+  arrange(Sequence) %>%
   ggplot(aes(x = rt, y = total_intensity, color = as.factor(Sequence), group = Replicate)) +
   geom_line(size = 0.8, alpha = 0.8) +
   facet_wrap(~ Facet_Label, ncol = 6) +
