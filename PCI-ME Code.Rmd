@@ -12,7 +12,7 @@ editor_options:
 This document reproduces every figure and supplementary item in the manuscript. It is organized in reading order:
 
 1.  **Main Figures** (Figure 1-7)
-2.  **Supplementary Figures** (Figure SI-1 - SI-19)
+2.  **Supplementary Figures** (Figure SI-1 - SI-20)
 3.  **Supplementary Tables** (Table SI-1 - SI-4)
 
 Each figure follows the same workflow: **extract the data -\> make the plot(s) -\> combine panels if needed -\> export as PNG and TIFF**.
@@ -41,22 +41,24 @@ Each figure follows the same workflow: **extract the data -\> make the plot(s) -
 -   **Supplementary Figures**
     -   Figure SI-1. Flowrate
     -   Figure SI-2. Effect of PLR
-    -   Figure SI-3. Contaminant ions MS
-    -   Figure SI-4. Homologue series map
-    -   Figure SI-5. Dilution MS spectra
-    -   Figure SI-6. Leucine-d10 EIC in solvent blanks
-    -   Figure SI-7. Contaminant MS (image)
+    -   Figure SI-3. Leucine-d10 EIC in solvent blanks
+    -   Figure SI-4. All compounds, positive mode
+    -   Figure SI-5. All compounds, negative mode
+    -   Figure SI-6. Contaminant MS (image)
+    -   Figure SI-7. Contaminant ions MS
     -   Figure SI-8. Summed EICs of contaminants
     -   Figure SI-9. Contaminant and matrix-effect overlap
-    -   Figure SI-10. Effect of PLR wash intensity on contaminant signals
-    -   Figure SI-11. Injection time
-    -   Figure SI-12. EIC of Acetyl-Carnitine and Glucose-13C6
-    -   Figure SI-13. Improved and worsened features
-    -   Figure SI-14. Individual worsened features
-    -   Figure SI-15 & SI-16. All compounds, positive and negative modes
-    -   Figure SI-17. Resolution figure
+    -   Figure SI-10. Homologue series map
+    -   Figure SI-11. Effect of PLR wash intensity on contaminant signals
+    -   Figure SI-12. Injection time
+    -   Figure SI-13. EIC of Acetyl-Carnitine and Glucose-13C6
+    -   Figure SI-14. Resolution figure
+    -   Figure SI-15. Dilution MS spectra
+    -   Figure SI-16. Isoleucine spike
+    -   Figure SI-17. Training and validation on Tryptophan
     -   Figure SI-18. RSD change versus retention time
-    -   Figure SI-19. Isoleucine spike
+    -   Figure SI-19. Improved and worsened features
+    -   Figure SI-20. Individual worsened features
 -   **Supplementary Tables**
     -   Table SI-1
     -   Table SI-2
@@ -65,12 +67,11 @@ Each figure follows the same workflow: **extract the data -\> make the plot(s) -
 
 ### Reproducibility
 
-```{r chunk-reproducibility}
-## This project uses renv for dependency management.
-## R version required: 4.3.3
-
-## Reproduce the computational environment
-install.packages("renv", ask = FALSE)
+```{r chunk-reproducibility, eval=FALSE}
+## Run once from the project root before reproducing the analysis.
+## The manuscript analysis was developed with R 4.3.3.
+install.packages("renv")
+renv::restore(prompt = FALSE)
 ```
 
 # Load libraries
@@ -117,16 +118,144 @@ library(tinytex)
 ### Filepaths and outputs
 
 ```{r chunk-filepaths-and-outputs}
-#set the working directory to where you have placed the project 
-# Working directory comes from opening the .Rproj; here() anchors to it.
-  # (Original hardcoded setwd() removed so the project runs on any machine.)
+# Open the project .Rproj before running this document. here() then resolves
+# project-relative paths without requiring setwd().
+#
+# Path priority:
+#   1. An explicit environment variable.
+#   2. A downloaded MetaboLights study directory.
+#   3. The documented project-relative directory.
+#   4. Daniel's temporary local directory (remove after publication testing).
 
-#set output for all figures
-output_dir <- here("Figures")
+# -------------------------------------------------------------------------
+# Configurable output directory
+# -------------------------------------------------------------------------
+# Set PCI_OUTPUT_DIR to write figures elsewhere. By default, all generated
+# figures are written to <project>/Figures.
+output_dir <- Sys.getenv("PCI_OUTPUT_DIR", unset = here("Figures"))
+results_dir <- Sys.getenv("PCI_RESULTS_DIR", unset = here("Results"))
 
-#Set directory for mzML files, downloaded through https://www.ebi.ac.uk/metabolights/editor/MTBLS13682
-mzml_folder <- #"~/mzML-PAN"
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
+
+# -------------------------------------------------------------------------
+# Flexible mzML-directory discovery
+# -------------------------------------------------------------------------
+# After publication, download and extract the complete MetaboLights study,
+# then set METABOLIGHTS_STUDY_DIR to its top-level directory. The study
+# accession and extraction-directory name are deliberately not hard-coded.
+metabolights_study_dir <- Sys.getenv("METABOLIGHTS_STUDY_DIR", unset = "")
+
+has_mzml_files <- function(path) {
+  dir.exists(path) && length(list.files(
+    path,
+    pattern = "\\.mzML$",
+    ignore.case = TRUE,
+    full.names = TRUE
+  )) > 0L
+}
+
+find_mzml_directory <- function(root, include_pattern = NULL,
+                                exclude_pattern = NULL) {
+  if (!nzchar(root) || !dir.exists(root)) {
+    return(NA_character_)
+  }
+
+  candidate_dirs <- unique(c(
+    root,
+    list.dirs(root, recursive = TRUE, full.names = TRUE)
+  ))
+  candidate_dirs <- candidate_dirs[vapply(
+    candidate_dirs,
+    has_mzml_files,
+    logical(1)
+  )]
+
+  if (!is.null(include_pattern)) {
+    candidate_dirs <- candidate_dirs[grepl(
+      include_pattern,
+      candidate_dirs,
+      ignore.case = TRUE
+    )]
+  }
+
+  if (!is.null(exclude_pattern)) {
+    candidate_dirs <- candidate_dirs[!grepl(
+      exclude_pattern,
+      candidate_dirs,
+      ignore.case = TRUE
+    )]
+  }
+
+  if (length(candidate_dirs) == 0L) {
+    return(NA_character_)
+  }
+
+  # Prefer the shallowest matching folder for predictable selection.
+  candidate_dirs[order(nchar(candidate_dirs))][1]
+}
+
+first_existing_directory <- function(paths) {
+  paths <- unique(paths[!is.na(paths) & nzchar(paths)])
+  match <- paths[dir.exists(paths)]
+  if (length(match) == 0L) NA_character_ else match[1]
+}
+
+# Main PCI mzML dataset. PCI_MZML_DIR always has highest priority.
+main_metabolights_mzml <- find_mzml_directory(
+  metabolights_study_dir,
+  exclude_pattern = "gradient|dilution"
+)
+
+mzml_folder <- first_existing_directory(c(
+  Sys.getenv("PCI_MZML_DIR", unset = ""),
+  main_metabolights_mzml,
+  here("Data", "mzML-PAN"),
   "C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN"
+))
+
+# Gradient/dilution mzML dataset. PCI_DILUTION_MZML_DIR has highest priority.
+dilution_metabolights_mzml <- find_mzml_directory(
+  metabolights_study_dir,
+  include_pattern = "gradient|dilution"
+)
+
+dilution_mzml_folder <- first_existing_directory(c(
+  Sys.getenv("PCI_DILUTION_MZML_DIR", unset = ""),
+  dilution_metabolights_mzml,
+  here("Data", "Gradient-and-Dilution", "mzML-PAN"),
+  "C:/Users/DanielMalheiro/Downloads/Exp7-Gradient and Dilution/mzML-PAN"
+))
+
+# Print the resolved locations so the analysis log records exactly which
+# inputs and output directory were used.
+message("Figure output directory: ", normalizePath(output_dir, mustWork = FALSE))
+message("Results output directory: ", normalizePath(results_dir, mustWork = FALSE))
+message("Main mzML directory: ", ifelse(is.na(mzml_folder), "NOT FOUND", mzml_folder))
+message(
+  "Dilution mzML directory: ",
+  ifelse(is.na(dilution_mzml_folder), "NOT FOUND", dilution_mzml_folder)
+)
+
+# Reusable checks provide an informative error at the point a required input
+# is used, rather than failing later with a cryptic file-not-found message.
+require_file <- function(path, description = "Required input file") {
+  if (!file.exists(path)) {
+    stop(description, " was not found: ", normalizePath(path, mustWork = FALSE), call. = FALSE)
+  }
+  path
+}
+
+require_dir <- function(path, description = "Required input directory") {
+  if (!dir.exists(path)) {
+    stop(
+      description, " was not found: ", normalizePath(path, mustWork = FALSE),
+      "\nSet the corresponding environment variable or create the documented project folder.",
+      call. = FALSE
+    )
+  }
+  path
+}
 
 ```
 
@@ -1193,6 +1322,9 @@ plot_EIC_sig_brackets2    <- plot_EIC_sig_brackets2    + theme(legend.position =
 # ================================
 # 3. Build sub-layouts (NO legends)
 # ================================
+# ================================
+# 3. Build sub-layouts (NO legends)
+# ================================
 MEvsEIC_AllRep <-
   plot_matrix_effect_1 /
   plot_matrix_effect_zoom_1 /
@@ -1203,7 +1335,31 @@ MEvsEIC_SomeRep <-
   plot_matrix_effect_zoom_2 /
   plot_EIC_sig_brackets2
 
-main_figure <- MEvsEIC_AllRep | MEvsEIC_SomeRep
+main_figure <- (MEvsEIC_AllRep | MEvsEIC_SomeRep) +
+  plot_annotation(
+    tag_levels = list(c("A", "B", "C", "D", "E", "F"))
+  ) &
+  theme(
+    plot.tag = element_text(
+      face = "bold",
+      size = 14
+    )
+  )
+
+# ================================
+# 4. Add legend as a bottom row
+# ================================
+Combined_MEvsEIC <- plot_grid(
+  main_figure,
+  shared_legend,
+  ncol = 1,
+  rel_heights = c(1, 0.08)
+)
+
+# ================================
+# 5. Display
+# ================================
+print(Combined_MEvsEIC)
 
 # ================================
 # 4. Add legend as a bottom row
@@ -1367,7 +1523,7 @@ merged_df$molecular_formula <- as.factor(merged_df$molecular_formula)
 merged_df$homologue_id <- as.factor(merged_df$homologue_id)
 ```
 
-## Figure 3.
+## Figure 3. Homologue Series
 
 ### Data and ClassifyR
 
@@ -4720,7 +4876,7 @@ long_data2 <- combined_data %>%
     Intensities = if_else(Intensities == 0, 1, Intensities)
   ) %>%
   filter(Times >= 0, Times <= 15) %>%
-  group_by(Chromatograms, Compound) %>%
+  group_by(Chromatograms, Compound, Charge, Adduct) %>%
   mutate(
     Average = zoo::rollmean(Intensities, k = 5, fill = NA, align = "left")
   ) %>%
@@ -5911,7 +6067,7 @@ ggsave(
 
 ### Data extraction
 
-```{r figure-si-1-data-extraction}
+```{r figure-si-1-data}
 # -------------------------------
 # File names (defined once)
 # -------------------------------
@@ -6008,7 +6164,7 @@ Pressure_data <- Pressure_data %>%
 
 ### Plot: Effect of PCI programmed flow rates
 
-```{r figure-si-1-plot-effect-of-pci-programmed-flow-rates}
+```{r figure-si-1-plot}
 # ---- Data preparation ----
 small_data <- long_data_flow %>%
   filter(Times >= 0, Times <= 20,
@@ -6121,7 +6277,7 @@ print(Figure_SI.1)
 
 ### Export (PNG + TIFF)
 
-```{r figure-si-1-export-png-tiff}
+```{r figure-si-1-export}
 # Save
 ggsave(
   filename = file.path(output_dir, "Figure_SI-1.png"),
@@ -6149,7 +6305,7 @@ ggsave(
 
 ### Data: faster to extract TIC using mzR
 
-```{r figure-si-2-data-faster-to-extract-tic-using-mzr}
+```{r figure-si-2-data}
 # Set working directory
 
 # List all mzML files in the folder
@@ -6391,7 +6547,7 @@ print(Figure_SI.2)
 
 ### Export (PNG + TIFF)
 
-```{r figure-si-2-export-png-tiff}
+```{r figure-si-2-export}
 # ---- Export (PNG + TIFF) ----
 
 # -----------------------------
@@ -6423,11 +6579,432 @@ ggsave(
 
 ```
 
-## Figure SI-3. Contaminant ions MS
+## Figure SI-3. Leucine-d10 EIC in solvent blanks
+
+### Data and Plot: Leucine-d10 EIC with replicatets of solvent blank 3- 6 mins
+
+```{r figure-si-3-plot}
+# ---- Data and Plot: Leucine-d10 EIC with replicatets of solvent blank 3- 6 mins ----
+solvent_leucine <- long_data %>% 
+  filter(
+    Compound == "Leucine-d10",
+    Wash == "NoWash",
+    Sample == "Solvent",
+    between(Times, 3, 6),
+    Replicate %in% 1:8
+  ) %>%
+  ggplot(aes(x = Times, y = Average, color = as.factor(Replicate))) +
+  
+  geom_line(size = 0.8) +
+  
+  facet_wrap(~ Replicate, ncol = 8, labeller = label_both) +
+  
+  scale_y_continuous(labels = scientific) +
+  
+  labs(
+    #title = "Leucine-d10 EIC across replicates of solvent blank (3–6 min)",
+    x = "Time (min)",
+    y = "Intensity",
+    color = "Replicate"
+  ) +
+    theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 10),
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black"),
+    panel.grid = element_blank(),
+    strip.text = element_text(size = 10),
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5)
+  )
+
+print(solvent_leucine)
+
+# Save
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-3.png"),
+  plot = solvent_leucine,
+  width = 20, height = 20, units = "cm", dpi = 1000
+)
+
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-3.tiff"),
+  plot = solvent_leucine,
+  width = 20, height = 20, units = "cm",
+  dpi = 1000, device = "tiff", compression = "lzw"
+)
+
+```
+
+## Figure SI-4 & SI-5. All compounds, positive and negative modes
+
+### Figure SI-4. All compounds, positive mode
+
+```{r figure-si-4-plot}
+# ===============================
+# Define x-axis limits
+# ===============================
+x_limits <- c(0, 14)
+
+# ===============================
+# Filter data - positive mode
+# ===============================
+filtered_data_pos2 <- long_data %>%
+  filter(
+    Sequence %in% 1:45,
+    between(Times, x_limits[1], x_limits[2]),
+    Compound %in% c(
+      "Indole-d6",
+      "Leucine-d10",
+      # "GlutamicAcid-d5",
+      "Carnitine-d9",
+      "Glucose-13C6",
+      "Tryptophan-d5",
+      "StearicAcid-d35"
+      # "CholicAcid-d4"
+    ),
+    Replicate %in% 1:8,
+    !(Sample == "NIST" & Replicate >= 4),
+    !(Replicate %in% c(1, 2, 3, 4, 6) & Sample == "Solvent")
+  ) %>%
+  mutate(
+    Wash = factor(Wash, levels = c("22x", "08x", "04x", "NoWash", "PPT")),
+    Wash = recode(
+      Wash,
+      "22x"    = "PLR 22x wash",
+      "08x"    = "PLR 8x wash",
+      "04x"    = "PLR 4x wash",
+      "NoWash" = "PLR unwashed",
+      "PPT"    = "PPT"
+    )
+  )
+
+# ===============================
+# Summary table for plotting
+# ===============================
+summary_table_F_pos <- filtered_data_pos2 %>%
+  group_by(Scan, Compound, Wash) %>%
+  summarise(
+    avg_time = mean(Times, na.rm = TRUE),
+    Process  = mean(Average[Sample == "Process"], na.rm = TRUE),
+    NIST     = mean(Average[Sample == "NIST"], na.rm = TRUE),
+    Solvent  = mean(Average[Sample == "Solvent"], na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Matrix_Effect = ((NIST / Solvent) * 100) - 100,
+    Comparison = "NIST / Solvent"
+  ) %>%
+  group_by(Comparison, avg_time, Scan, Compound, Wash) %>%
+  summarise(
+    Matrix_Effect = mean(Matrix_Effect, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Wash = factor(
+      Wash,
+      levels = c(
+        "PPT",
+        "PLR unwashed",
+        "PLR 22x wash",
+        "PLR 8x wash",
+        "PLR 4x wash"
+      )
+    ),
+    Compound_plot = recode(
+      Compound,
+      "Average"         = "Average",
+      "Tryptophan-d5"   = "Tryptophan-d[5]",
+      "Leucine-d10"     = "Leucine-d[10]",
+      "Glucose-13C6"    = "Glucose-{}^{13}*C[6]",
+      "StearicAcid-d35" = "Stearic~acid-d[35]",
+      "Indole-d6"       = "Indole-d[6]",
+      "Carnitine-d9"    = "Carnitine-d[9]"
+    )
+  )
+
+# ===============================
+# Plot
+# ===============================
+SI.All_pos <- ggplot(summary_table_F_pos, aes(x = avg_time)) +
+
+  geom_line(
+    aes(y = Matrix_Effect, color = Compound),
+    size = 0.8
+  ) +
+
+  geom_hline(
+    yintercept = 0,
+    linetype = "solid",
+    color = "grey60",
+    size = 0.5
+  ) +
+
+  geom_hline(
+    yintercept = c(-20, 20),
+    linetype = "dashed",
+    color = "black",
+    size = 0.6
+  ) +
+
+  facet_grid(
+    Wash ~ Compound_plot,
+    labeller = labeller(
+      Compound_plot = label_parsed,
+      Wash = label_value
+    )
+  ) +
+
+  labs(
+    x = "Retention Time (mins)",
+    y = "Matrix Effect (%)"
+  ) +
+
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 9),
+    strip.text.y = element_text(angle = 0),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black"),
+    plot.margin = margin(5, 10, 5, 5, unit = "mm")
+  )
+
+# ===============================
+# Display
+# ===============================
+print(SI.All_pos)
+
+# ===============================
+# Save PNG
+# ===============================
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-4.png"),
+  plot = SI.All_pos,
+  width = 20,
+  height = 20,
+  units = "cm",
+  dpi = 1000
+)
+
+# ===============================
+# Save TIFF
+# ===============================
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-4.tiff"),
+  plot = SI.All_pos,
+  width = 22,
+  height = 20,
+  units = "cm",
+  dpi = 1000,
+  device = "tiff",
+  compression = "lzw"
+)
+```
+
+### Figure SI-5. All compounds, negative mode
+
+```{r figure-si-5-plot}
+# ===============================
+# Define x-axis limits
+# ===============================
+x_limits <- c(0, 14)
+
+# ===============================
+# Filter data
+# ===============================
+filtered_data_neg2 <- long_data2 %>%
+  filter( Sequence %in% 1:45,
+    between(Times, x_limits[1], x_limits[2]),
+    Compound %in% c(
+      #"Carnitine-d9",
+      "Leucine-d10",
+      "GlutamicAcid-d5",
+      "Tryptophan-d5",
+      "StearicAcid-d35",
+      "CholicAcid-d4",
+      "Glucose-13C6"
+      #"Indole-d6"
+    ),
+    #Wash %in% c("PPT", "NoWash", "22x"),
+    Replicate %in% 1:8,
+   !(Sample == "NIST" & Replicate >= 4),
+    !(Replicate %in% c("1", "2", "3", "4", "6") & Sample == "Solvent")) %>%
+  mutate(Wash = factor(Wash, levels = c("22x","08x", "04x", "NoWash", "PPT")),
+ Wash = recode(
+      Wash,
+      "22x"    = "PLR 22x wash",
+      "08x"    = "PLR 8x wash",
+      "04x"    = "PLR 4x wash",
+      "NoWash" = "PLR unwashed",
+      "PPT"    = "PPT"))
+
+# ===============================
+# Summary table for plotting
+# ===============================
+summary_table_F <- filtered_data_neg2 %>%
+  group_by(Scan, Compound, Wash) %>%
+  summarise(
+    avg_time = mean(Times, na.rm = TRUE),
+    Process  = mean(Average[Sample == "Process"],  na.rm = TRUE),
+    NIST     = mean(Average[Sample == "NIST"],     na.rm = TRUE),
+    Solvent  = mean(Average[Sample == "Solvent"],  na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Matrix_Effect = ((NIST / Solvent) * 100) - 100,
+    Comparison = "NIST / Solvent"
+  ) %>%
+  group_by(Comparison, avg_time, Scan, Compound, Wash) %>%
+  summarise(
+    Matrix_Effect = mean(Matrix_Effect, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Wash = recode(
+      Wash,
+      "22x"    = "PLR 22x wash",
+      "08x"    = "PLR 8x wash",
+      "04x"    = "PLR 4x wash",
+      "NoWash" = "PLR unwashed",
+      "PPT"    = "PPT"),
+    Wash = factor(Wash, levels = c("PPT", "PLR unwashed","PLR 22x wash","PLR 8x wash","PLR 4x wash")),
+    Compound_plot = recode(
+      Compound,
+      "Glucose-13C6"    = "Glucose-{}^{13}*C[6]",
+  "Tryptophan-d5"   = "Tryptophan-d[5]",
+  "StearicAcid-d35" = "'Stearic acid'-d[35]",
+  "CholicAcid-d4"   = "'Cholic acid'-d[4]",
+  "GlutamicAcid-d5" = "'Glutamic acid'-d[5]"
+)
+    )
+
+# ===============================
+# Annotation helper data (ONE row per Wash)
+# ===============================
+annot_PPT <- summary_table_F %>%
+  filter(Wash == "PPT") %>%
+  distinct(Wash)
+
+annot_PLR <- summary_table_F %>%
+  filter(Wash == "PLR unwashed") %>%
+  distinct(Wash)
+
+max_intensity <- max(summary_table_F$Matrix_Effect, na.rm = TRUE)
+
+asterisk_df <- data.frame(
+  avg_time = 4.5,
+  Matrix_Effect = 20,
+  label = "*",
+  Wash = "PPT",                  # CHANGE if needed
+  Compound_plot = "Leucine[d10]"  # MUST match facet value exactly
+)
+
+# ===============================
+# Plot
+# ===============================
+SI.All_Neg <- ggplot(summary_table_F, aes(x = avg_time)) +
+
+  # Matrix effect lines
+  geom_line(
+    aes(y = Matrix_Effect, color = Compound),
+    size = 0.8
+  ) +
+
+  # Zero reference
+   geom_hline(
+    yintercept = 0,
+    linetype = "solid",
+    color = "grey60",
+    size = 0.5
+  ) +
+  geom_hline(
+    yintercept = c(-20, 20),
+    linetype = "dashed",
+    color = "black",
+    size = 0.6
+  ) +
+  
+
+#  -------------------------------
+# GLOBAL ASTERISK (ALL PANELS)
+#  -------------------------------
+  # annotate(
+  #   "text",
+  #   x = 4.7,
+  #   y = 10,
+  #   label = "*",
+  #   size = 4,
+  #   fontface = "bold"
+  # ) +
+
+  # Facets
+  facet_grid(
+    Wash ~ Compound_plot,
+    labeller = labeller(
+      Compound_plot = label_parsed,
+      Wash = label_value
+    )
+  ) +
+
+  labs(
+    x = "Retention Time (mins)",
+    y = "Matrix Effect (%)"
+  ) +
+
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 10),
+    strip.text.y = element_text(angle = 0),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black"),
+    plot.margin = margin(5, 10, 5, 5, unit = "mm")
+  )
+
+# ===============================
+# Display
+# ===============================
+print(SI.All_Neg)
+
+# Save PNG
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-5.png"),
+  plot = SI.All_Neg,
+  width = 20,
+  height = 20,
+  units = "cm",
+  dpi = 1000
+)
+
+# Save TIFF
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-5.tiff"),
+  plot = SI.All_Neg,
+  width = 22,
+  height = 20,
+  units = "cm",
+  dpi = 1000,
+  device = "tiff",
+  compression = "lzw"
+)
+
+```
+
+## Figure SI-6. Contaminant MS (image)
+
+```{r figure-si-6-setup}
+## Screenshot from FreeStyle
+```
+
+## Figure SI-7. Contaminant ions MS
 
 ### Data:
 
-```{r figure-si-3-data}
+```{r figure-si-7-data}
 # Load file and extract scan
 file_22x <- file.path(
   mzml_folder,
@@ -6450,7 +7027,7 @@ scan787_data <- tibble(mz = mz_vals, intensity = intensities) %>%
 
 ### Plot 1:
 
-```{r figure-si-3-plot-1}
+```{r figure-si-7-plot-overview}
 # ---- Plot 1: ----
 
 # identify peaks ~1 m/z apart using simple local maxima logic
@@ -6525,11 +7102,11 @@ print(massspec_ions)
 
 ### Data and Plot 2:
 
-```{r figure-si-3-data-and-plot-2}
+```{r figure-si-7-plot-detail}
 # ---- Data and Plot 2: ----
 
 
-#load data, preextracted in SI-Figure 4.
+# Load data pre-extracted for the contaminant-ion analysis.
 largelist_contaminants <- readRDS(here("Data", "eic_df_newions.rds"))
 
 summed_signals <- largelist_contaminants %>%
@@ -6612,10 +7189,10 @@ print(contaminent_blanks)
 
 ### Export (PNG + TIFF)
 
-```{r figure-si-3-export-png-tiff}
+```{r figure-si-7-export}
 # Save PNG
 ggsave(
-  filename = file.path(output_dir, "Figure_SI-3.png"),
+  filename = file.path(output_dir, "Figure_SI-7.png"),
   plot = contaminent_blanks,
   width = 20,
   height = 15,
@@ -6625,7 +7202,7 @@ ggsave(
 
 # Save TIFF
 ggsave(
-  filename = file.path(output_dir, "Figure_SI-3.tiff"),
+  filename = file.path(output_dir, "Figure_SI-7.tiff"),
   plot = contaminent_blanks,
   width = 20,
   height = 15,
@@ -6636,11 +7213,266 @@ ggsave(
 )
 ```
 
-## Figure SI-4. Homologue series map
+## Figure SI-8. Summed EICs of contaminants
+
+### Data: Extracting background contaminates from each files
+
+```{r figure-si-8-data}
+# ---- Data: Extracting background contaminates from each files ----
+
+# # Define target masses
+# #annotate_masses2 <- c(654.9935, 653.9914, 652.9877, 651.9808, 650.9743, 649.9660, 648.9597, 647.9515)
+# annotate_masses3 <- annotated_peaks$mz
+# 
+# # ppm tolerance
+# ppm <- 2
+# 
+# # Define all mzML files
+# mzml_files <- list.files(mzml_folder, pattern = "\\.mzML$", full.names = TRUE)
+# 
+# # Function to extract EIC from raw file for one mass
+# extract_mass_eic <- function(file_path, target_mz, ppm, file_id) {
+#   raw_data <- xcmsRaw(file_path)
+# 
+#   # Calculate mz range
+#   mz_tol <- (ppm / 1e6) * target_mz
+#   mz_range <- c(target_mz - mz_tol, target_mz + mz_tol)
+# 
+#   # Get positive mode scans
+#   positive_scans <- which(raw_data@polarity == "positive")
+# 
+#   if (length(positive_scans) > 0) {
+#     eic <- rawEIC(raw_data, mzrange = mz_range)
+# 
+#     df <- data.frame(
+#       scan = seq_along(positive_scans),
+#       rt = raw_data@scantime[positive_scans] / 60,
+#       intensity = eic$intensity[positive_scans],
+#       mass = target_mz,
+#       file = basename(file_path)
+#     ) %>%
+#       mutate(average_intensity = rollmean(intensity, k = 5, fill = NA, align = "left"))
+# 
+#     return(df)
+#   } else {
+#     return(NULL)
+#   }
+# }
+# 
+# # Loop through files and masses
+# all_eics <- list()
+# 
+# for (file in mzml_files) {
+#   message("Processing: ", basename(file))
+#   for (mass in annotate_masses3) {
+#     eic_data <- extract_mass_eic(file, mass, ppm, basename(file))
+#     if (!is.null(eic_data)) {
+#       all_eics[[length(all_eics) + 1]] <- eic_data
+#     }
+#   }
+# }
+# 
+# # Combine all into one dataframe
+# eic_df <- bind_rows(all_eics)
+
+#saveRDS(eic_df, file = "eic_df_newions.rds")
+largelist_contaminants <- readRDS(here("Data","eic_df_newions.rds"))
+
+summed_signals <- largelist_contaminants %>%
+  group_by(file, rt) %>%
+  summarise(total_intensity = sum(average_intensity, na.rm = TRUE), .groups = "drop") %>%
+  mutate(
+    file_base = str_remove(file, "\\.mzML$"),
+    Sequence  = as.numeric(str_split(file_base, "-", simplify = TRUE)[,5]),
+    Wash      = str_split(file_base, "-", simplify = TRUE)[,6],
+    Sample    = str_split(file_base, "-", simplify = TRUE)[,7]
+  ) %>%
+  arrange(Sample, Wash) %>%
+  group_by(Sample, Wash) %>%
+  mutate(Replicate = dense_rank(Sequence),
+         Replicate = as.factor(Replicate)) %>%
+  ungroup() %>%
+  group_by(file) %>%
+  arrange(rt, .by_group = TRUE) %>%
+  mutate(scan = row_number()) %>%
+  ungroup()
+
+
+
+# Set the Wash factor with desired order
+summed_signals$Wash <- factor(summed_signals$Wash, levels = c("22x", "08x", "04x", "NoWash", "PPT"))
+
+# Prepare the combined facet label
+summed_signals <- summed_signals %>%
+  mutate(Facet_Label = paste0(Sequence, " | ", Wash, " | ", Sample))
+
+# Plot
+allinter <- summed_signals %>%
+  filter(
+    rt >= 0 & rt <= 10,
+    !is.na(Wash),
+    Sequence %in% 8:45) %>%
+  arrange(Sequence) %>%
+  ggplot(aes(x = rt, y = total_intensity, color = as.factor(Sequence), group = Replicate)) +
+  geom_line(size = 0.8, alpha = 0.8) +
+  facet_wrap(~ Facet_Label, ncol = 6) +
+  scale_x_continuous(
+  breaks = seq(0, 10, by = 2.5),
+  labels = c("0", "", "5", "", "10")
+) + 
+  labs(
+    #title = "Summed EICs for All Target Masses",
+    x = "Retention Time (min)",
+    y = "Summed Intensity of Interfering Ions",
+    color = "Sequence | Wash | Sample"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black"),
+    strip.text = element_text(size = 8,
+    #plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    #axis.title = element_text(face = "bold")
+  )
+)
+# Print the plot
+print(allinter)
+
+#---------------------------------------------
+# Save
+#---------------------------------------------
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-8.png"),
+  plot = allinter,
+  width = 20, height = 20, units = "cm", dpi = 1000
+)
+
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-8.tiff"),
+  plot = allinter,
+  width = 20, height = 20, units = "cm",
+  dpi = 1000, device = "tiff", compression = "lzw"
+)
+
+
+
+```
+
+## Figure SI-9. Contaminant and matrix-effect overlap
+
+```{r figure-si-9-setup}
+# Define plot range and lines
+zoomlimits22only <- c(3, 6)
+vline_positions22only <- c(4.375, 4.835)
+
+# ---- PLOT A: Zoomed-In Matrix Effect for 22x ----
+plot_matrix_effect_zoom_22xonly <- summary_table_2 %>%
+  filter(
+    Comparison == "NIST / Solvent",
+    Wash == "PLR 22x wash",
+    between(avg_time, zoomlimits22only[1], zoomlimits22only[2])
+  ) %>%
+  ggplot(aes(x = avg_time, y = ME_NS_mean)) +
+  geom_ribbon(
+    aes(ymin = ME_NS_lower, ymax = ME_NS_upper),
+    fill = "red", alpha = 0.2
+  ) +
+  geom_line(color = "red", size = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", size = 0.7) +
+  geom_vline(xintercept = vline_positions22only, linetype = "dotted", color = "black", size = 0.8) +
+  coord_cartesian(ylim = c(global_min_y, global_max_y)) +
+  scale_x_continuous(
+    breaks = seq(3, 6, by = 1),
+      ) +
+  labs(
+    #title = "Matrix Effect (NIST / Solvent) – 22x only",
+    x = NULL,
+    y = "Matrix Effect (%)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_blank(),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black")
+  )
+
+# ---- PLOT B: Interfering Ions (Summed Trace) for NIST-22x ----
+average_nist_22x <- summed_signals %>%
+  filter(
+    Sequence %in% 8:45,
+    Sample == "NIST", Wash == "22x",
+    between(rt, zoomlimits22only[1], zoomlimits22only[2]),
+    Replicate == 1
+  ) %>%
+  group_by(scan) %>%
+  summarise(
+    total_intensity = sum(total_intensity, na.rm = TRUE),
+    rt = mean(rt),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    rolling_intensity = rollmean(total_intensity, k = 5, fill = NA, align = "right")
+  )
+
+nist_22x_rep <- ggplot(average_nist_22x, aes(x = rt)) +
+  geom_line(aes(y = rolling_intensity), color = "blue", size = 0.8) +
+  geom_vline(xintercept = vline_positions22only, linetype = "dotted", color = "black", size = 0.8) +
+  scale_y_continuous(labels = scales::scientific) +
+  scale_x_continuous(
+    breaks = seq(3, 6, by = 1),
+      ) +
+  labs(
+    #title = "Summed Interfering Ion Signal",
+    x = "Retention Time (min)",
+    y = "Summed Intensity"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black")
+  )
+
+# ---- Combine A + B Vertically ----
+pub_ready_plot <- plot_matrix_effect_zoom_22xonly / nist_22x_rep
+
+# ---- Display ----
+print(pub_ready_plot)
+
+
+# Save PNG
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-9.png"),
+  plot = pub_ready_plot,
+  width = 20,
+  height = 10,
+  units = "cm",
+  dpi = 1000
+)
+
+# Save TIFF
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-9.tiff"),
+  plot = pub_ready_plot,
+  width = 20,
+  height = 10,
+  units = "cm",
+  dpi = 1000,
+  device = "tiff",
+  compression = "lzw"
+)
+
+```
+
+## Figure SI-10. Homologue series map
 
 ### Plot
 
-```{r si04-homologue-plot}
+```{r figure-si-10-plot}
 # Levels and palette setup
 molecular_formula_levels <- levels(merged_df$molecular_formula)
 homologue_levels <- levels(merged_df$homologue_id)
@@ -6692,10 +7524,10 @@ print(g2tax)
 
 ### Export
 
-```{r si04-homologue-export}
+```{r figure-si-10-export}
 # Save PNG
 ggsave(
-  filename = file.path(output_dir, "Figure_SI-4.png"),
+  filename = file.path(output_dir, "Figure_SI-10.png"),
   plot = g2tax,
   width = 20,
   height = 15,
@@ -6705,7 +7537,7 @@ ggsave(
 
 # Save TIFF
 ggsave(
-  filename = file.path(output_dir, "Figure_SI-4.tiff"),
+  filename = file.path(output_dir, "Figure_SI-10.tiff"),
   plot = g2tax,
   width = 20,
   height = 15,
@@ -6716,11 +7548,736 @@ ggsave(
 )
 ```
 
-## Figure SI-5. Dilution MS spectra
+## Figure SI-11. Effect of PLR wash intensity on contaminant signals
+
+```{r figure-si-11-setup}
+#---------------------------------------------
+# 1. Filter and recode wash labels
+#---------------------------------------------
+wash_subset <- summarized_data %>%
+  filter(homologue_id %in% c(1,14,16,17,18,19),
+         Sequence <= 45,
+         Sample == "Blank",
+         Wash %in% c("NoWash", "22x", "08x", "04x")) %>%
+  mutate(
+    Wash = recode(Wash,
+                  "22x"    = "PLR 22x Wash",
+                  "08x"    = "PLR 8x Wash",
+                  "04x"    = "PLR 4x Wash",
+                  "NoWash" = "PLR Unwashed"),
+    Wash = factor(Wash,
+                  levels = c("PLR Unwashed", "PLR 4x Wash",
+                             "PLR 8x Wash", "PLR 22x Wash")),
+    
+    homologue_id = factor(
+      homologue_id,
+      levels = c(1, 14, 16, 17, 18, 19),
+      labels = c(
+        "Homologue id 1",
+        "Homologue id 14",
+        "Homologue id 16",
+        "Homologue id 17",
+        "Homologue id 18",
+        "Homologue id 19"
+      )
+    )
+  )
+
+#---------------------------------------------
+# 2. Create log-transformed column (safe)
+#---------------------------------------------
+wash_subset <- wash_subset %>%
+  mutate(
+    log_intensity = log10(pmax(Intensity, 1e-6))
+  )
+
+#---------------------------------------------
+# 3. Pairwise testing (log scale)
+#---------------------------------------------
+stat_test_raw <- wash_subset %>%
+  group_by(homologue_id) %>%
+  pairwise_t_test(
+    log_intensity ~ Wash,
+    p.adjust.method = "BH"
+  )
+
+stat_sig <- stat_test_raw
+
+#---------------------------------------------
+# 4. Compute per-facet max (for brackets)
+#---------------------------------------------
+y_max <- wash_subset %>%
+  group_by(homologue_id) %>%
+  summarise(max_y = max(log_intensity, na.rm = TRUE))
+
+stat_sig <- stat_sig %>%
+  left_join(y_max, by = "homologue_id") %>%
+  group_by(homologue_id) %>%
+  mutate(
+    bracket_index = row_number(),
+    y.position = max_y + 0.12 + 0.10 * (bracket_index - 1)   # ⭐ tighter spacing
+  ) %>%
+  ungroup()
+
+#---------------------------------------------
+# 5. Boxplot (log values plotted directly)
+#---------------------------------------------
+box_sig_plot <- wash_subset %>%
+  ggplot(aes(x = Wash, y = log_intensity, fill = Wash)) +
+  
+  geom_boxplot(outlier.alpha = 0.25, linewidth = 0.5) +
+  facet_wrap(~ homologue_id, scales = "free_y", ncol = 3) +
+
+  scale_fill_manual(values = c(
+    "PLR Unwashed" = "grey40",
+    "PLR 4x Wash"  = "#e31a1c",
+    "PLR 8x Wash"  = "#33a02c",
+    "PLR 22x Wash" = "#1f78b4"
+  )) +
+
+  stat_pvalue_manual(
+    stat_sig,
+    label = "p.adj.signif",
+    size = 3,
+    tip.length = 0.01
+  ) +
+
+  # ⭐ Clean numeric log axis (1,2,3...)
+  scale_y_continuous(
+    name = "Log10 Summed Intensity",
+    breaks = seq(
+      floor(min(wash_subset$log_intensity, na.rm = TRUE)),
+      ceiling(max(wash_subset$log_intensity, na.rm = TRUE)),
+      by = 1
+    ),
+    expand = expansion(mult = c(0, 0.10))   # ⭐ reduced empty space
+  ) +
+
+  labs(
+    x = "Wash Condition"
+  ) +
+
+  theme_bw(base_size = 14) +
+  theme(
+    strip.text  = element_text(size = 12, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none"
+  )
+
+box_sig_plot
+
+#---------------------------------------------
+# Save
+#---------------------------------------------
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-11.png"),
+  plot = box_sig_plot,
+  width = 20, height = 20, units = "cm", dpi = 1000
+)
+
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-11.tiff"),
+  plot = box_sig_plot,
+  width = 20, height = 20, units = "cm",
+  dpi = 1000, device = "tiff", compression = "lzw"
+)
+```
+
+## Figure SI-12. Injection time
+
+### Data
+
+```{r figure-si-12-data}
+# ---- Data ----
+
+# Load the mzML file
+file_path <- file.path(
+  mzml_folder,
+"241008-Exp-PAN-1-035-NoWash-NIST.mzML")
+raw_data <- xcmsRaw(file_path)
+raw_data <- readMSData(file_path, mode = "onDisk")
+
+# Extract full scan-level metadata
+scan_info <- fData(raw_data)
+
+# Inspect available metadata columns (optional)
+colnames(scan_info)
+
+# Filter for positive polarity scans
+# Polarity values: 1 = positive, 0 = negative
+positive_scans <- scan_info %>%
+  filter(polarity == 1)
+
+# Extract retention time (convert to minutes) and injection time
+scan_df <- data.frame(
+  retention_time = positive_scans$retentionTime / 60,
+  injection_time = positive_scans$injectionTime
+)
+```
+
+### plot
+
+```{r figure-si-12-plot}
+# Define zoom range and vertical line positions
+zoom_limits <- c(0, 3)   # Zoomed-in range
+vline_positions <- rt_df$RT_min  # Vertical line positions
+
+# Create the injection time plot with formatting for publication
+Ioninjection_plot <- scan_df %>%
+  filter(between(retention_time, zoom_limits[1], zoom_limits[2])) %>%
+  ggplot(aes(x = retention_time, y = injection_time)) +
+  geom_vline(xintercept = vline_positions, linetype = "dotted", color = "black") +  # Add vertical lines
+  geom_line(color = "darkgreen", size = 0.75) +
+    geom_text(data = rt_df,
+            aes(x = RT_min, y = 5, label = scan_label),
+            inherit.aes = FALSE,
+            angle = 90, vjust = -1, size = 4) +
+  geom_line(size = 0.75, alpha = 0.6) +
+  labs(
+    #title = "Injection Time vs Retention Time (Positive Polarity)",
+    x = "Retention Time (min)",
+    y = "Injection Time (ms)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black"),
+    axis.title.x = element_text(),
+    axis.title.y = element_text()
+  )
+
+# Print the plot
+print(Ioninjection_plot)
+
+# Save PNG
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-12.png"),
+  plot = Ioninjection_plot,
+  width = 20,
+  height = 10,
+  units = "cm",
+  dpi = 1000
+)
+
+# Save TIFF
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-12.tiff"),
+  plot = Ioninjection_plot,
+  width = 20,
+  height = 10,
+  units = "cm",
+  dpi = 1000,
+  device = "tiff",
+  compression = "lzw"
+)
+```
+
+## Figure SI-13. EIC of Acetyl-Carnitine and Glucose-13C6
+
+### Data and Plot:
+
+```{r figure-si-13-plot}
+# Load the mzML file
+file_nowash <- file.path(
+  mzml_folder,"241008-Exp-PAN-1-035-NoWash-NIST.mzML")
+
+if (!exists("raw_data_glu")) {
+  raw_data_glu <- xcmsRaw(file_nowash)
+} else {
+  message("'raw_data_glu' already exists in the environment.")
+}
+
+ppm <- 2
+
+# Define function to extract EIC for a target m/z
+extract_eic <- function(raw_data, target_mz, ppm, polarity_label = "positive") {
+  mz_tol <- (ppm / 1e6) * target_mz
+  mz_range <- c(target_mz - mz_tol, target_mz + mz_tol)
+
+  positive_scans <- which(raw_data@polarity == polarity_label)  # 1 = positive
+
+  eic <- rawEIC(raw_data, mzrange = mz_range)
+
+  eic_df <- data.frame(
+    rt = raw_data@scantime[positive_scans] / 60,  # Convert to minutes
+    intensity = eic$intensity[positive_scans],
+    scan = seq_along(positive_scans),
+    target = paste0("m/z ", round(target_mz, 4))
+  ) %>%
+    mutate(average_intensity = rollmean(intensity, k = 5, fill = NA, align = "left"))
+
+  return(eic_df)
+}
+
+# Create mapping from m/z to metabolite name
+target_labels <- c(
+  `204.1173` = "Glucose-13C6",
+  `204.1230` = "Acetyl-carnitine"
+)
+
+target_labels_plot <- c(
+  `204.1173` = "Glucose-{}^{13}*C[6]",
+  `204.1230` = "Acetyl-carnitine"
+)
+
+eic_df_1 <- extract_eic(raw_data_glu, 204.1173, ppm) %>%
+  mutate(
+    target = target_labels["204.1173"],
+    target_plot = target_labels_plot["204.1173"]
+  )
+
+eic_df_2 <- extract_eic(raw_data_glu, 204.1230, ppm) %>%
+  mutate(
+    target = target_labels["204.1230"],
+    target_plot = target_labels_plot["204.1230"]
+  )
+
+combined_eic_df <- bind_rows(eic_df_1, eic_df_2)
+
+combined_eic_df_scaled <- combined_eic_df %>%
+  group_by(target, target_plot) %>%
+  mutate(scaled_intensity = average_intensity / max(average_intensity, na.rm = TRUE)) %>%
+  ungroup()
+
+chromatogram_overlay_scaled <- combined_eic_df_scaled %>%
+  filter(between(rt, 0, 5)) %>%
+  ggplot(aes(x = rt, y = scaled_intensity, color = target_plot)) +
+  geom_line(linewidth = 0.8) +
+  labs(
+    x = "Retention Time (min)",
+    y = "Normalized Intensity",
+    color = "Compound"
+  ) +
+  scale_color_discrete(labels = scales::label_parse()) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    #legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 11),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black"),
+    #axis.title = element_text(face = "bold"),
+    plot.title = element_text(hjust = 0.5)
+  )
+
+print(chromatogram_overlay_scaled)
+
+# Save
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-13.png"),
+  plot = chromatogram_overlay_scaled,
+  width = 20,
+  height = 10,
+  units = "cm",
+  dpi = 1000
+)
+
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-13.tiff"),
+  plot = chromatogram_overlay_scaled,
+  width = 20,
+  height = 10,
+  units = "cm",
+  dpi = 1000,
+  device = "tiff",
+  compression = "lzw"
+)
+
+```
+
+## Figure SI-14. Resolution figure
+
+```{r figure-si-14-setup}
+#---------------------------------------------
+# 1. Define mzML files + labels + starting scans
+#---------------------------------------------
+# Resolution mzML files live in a subfolder. Use a dedicated path variable so
+# the global mzml_folder (used by every other figure) is NOT overwritten.
+resolution_folder <- file.path(mzml_folder, "Resolution")
+
+file_info <- data.frame(
+  file = c(
+    file.path(resolution_folder, "240925-Exp-PAN-1-010-NoWash-NIST.mzML"),
+    file.path(resolution_folder, "240925-Exp-PAN-1-016-NoWash-NIST-R120.mzML"),
+    file.path(resolution_folder, "240925-Exp-PAN-1-028-NoWash-NIST-R240.mzML")
+  ),
+  label = c("60K", "120K", "240K"),
+  start_scan = c(333, 243, 157),
+  stringsAsFactors = FALSE
+)
+
+# Ensure correct plotting order
+file_info$label <- factor(file_info$label, levels = c("60K", "120K", "240K"))
+
+#---------------------------------------------
+# 2. Function to extract selected scans
+#---------------------------------------------
+process_file <- function(file_path, start_scan, label) {
+  
+  raw_data <- xcmsRaw(file_path)
+  mz_range <- c(204.11, 204.13)
+  
+  # ⭐ Keep only 4 scans (remove 5th)
+  scan_offsets <- c(0, 2, 4, 6)
+  scans <- start_scan + scan_offsets
+  
+  spectra_list <- lapply(seq_along(scans), function(i) {
+    
+    scan_index <- scans[i]
+    
+    scan_start <- raw_data@scanindex[scan_index] + 1
+    scan_end <- ifelse(scan_index + 1 <= length(raw_data@scanindex), 
+                      raw_data@scanindex[scan_index + 1], 
+                      length(raw_data@env$mz))
+    
+    mz_values <- raw_data@env$mz[scan_start:scan_end]
+    intensity_values <- raw_data@env$intensity[scan_start:scan_end]
+    
+    df <- data.frame(mz = mz_values, intensity = intensity_values) %>%
+      dplyr::filter(mz >= mz_range[1] & mz <= mz_range[2])
+    
+    # Handle empty spectra
+    if (nrow(df) == 0) {
+      df <- data.frame(
+        mz = c(mz_range[1], mz_range[2]),
+        intensity = c(0, 0)
+      )
+    }
+    
+    df %>%
+      dplyr::mutate(
+        sample = label,
+        scan = factor(paste0("Scan ", i), levels = paste0("Scan ", 1:4))
+      )
+  })
+  
+  dplyr::bind_rows(spectra_list)
+}
+
+#---------------------------------------------
+# 3. Process all files
+#---------------------------------------------
+combined_spectra <- purrr::pmap_dfr(
+  list(file_info$file, file_info$start_scan, file_info$label),
+  process_file
+)
+
+#---------------------------------------------
+# 4. Plot
+#---------------------------------------------
+target_masses <- c(204.1173, 204.1230)
+
+spectrum_glucose <- ggplot(combined_spectra, aes(x = mz, y = intensity)) +
+  
+  # ⭐ Color by resolution (sample)
+  geom_line(aes(color = sample, group = interaction(sample, scan)), alpha = 0.7) +
+  
+  geom_vline(xintercept = target_masses, linetype = "dashed", color = "black") +
+  
+  facet_grid(sample ~ scan, scales = "free_x") +
+  
+  coord_cartesian(ylim = c(0, 2.5e6)) +
+  
+  scale_y_continuous(labels = scales::scientific) +
+  
+  scale_x_continuous(
+    name = "Mass to Charge Ratio",
+    breaks = target_masses,
+    labels = format(target_masses, digits = 7)
+  ) +
+  
+  # ⭐ Define clear colors for each resolution
+  scale_color_manual(
+    values = c(
+      "60K"  = "#1f78b4",   # blue
+      "120K" = "#33a02c",   # green
+      "240K" = "#e31a1c"    # red
+    )
+  ) +
+  
+  labs(
+    y = "Intensity",
+    #title = "B"
+  ) +
+  
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none",   # keep off since faceted
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black"),
+    strip.text = element_text(size = 10, face = "bold"),
+    plot.title.position = "plot",
+    plot.title = element_text(hjust = 0, face = "bold", size = 14)
+  )
+
+print(spectrum_glucose)
+
+# Save
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-14.png"),
+  plot = spectrum_glucose,
+  width = 20, height = 20, units = "cm", dpi = 1000
+)
+
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-14.tiff"),
+  plot = spectrum_glucose,
+  width = 20, height = 20, units = "cm",
+  dpi = 1000, device = "tiff", compression = "lzw"
+)
+
+
+```
+
+### Combining dilution and ME plots (figure 7 and 8)
+
+```{r figure-si-14-combine-plots}
+# ---- Combining dilution and ME plots (figure 7 and 8) ----
+dilution_file <- "Skyline-PCI-InfusionTest-Exp7-Gradient and Dilution.tsv"  
+dilution_data <- read_tsv(here("Data", dilution_file))
+
+replacements <- c(
+  "Leucine d10" = "Leucine-d10" ,
+   "Glutamic acid-d5"= "GlutamicAcid-d5",
+   "DL-Tryptophan-d5" = "Tryptophan-d5",
+   "Stearic-d35 (18:0)" = "StearicAcid-d35",
+   "Cholic acid-d4" = "CholicAcid-d4")
+
+data5 <- dilution_data %>%
+  dplyr::rename(
+    Chromatograms = FileName,
+    Compound = PeptideModifiedSequence,
+    Adduct = PrecursorCharge,
+    Charge = ProductCharge
+  ) %>%
+  select(-IsotopeLabelType, -TotalArea, -FragmentIon) %>%
+  separate(
+    Chromatograms,
+    into = c(
+      "Date",
+      "Exp",
+      "PAN",
+      "Batch",
+      "Sequence",
+      "Wash",
+      "Sample",
+      "Dilution"),
+    sep = "-",
+    remove = FALSE
+  ) %>%
+  mutate(
+    Sample = str_remove(Sample, "\\.raw"),
+    Dilution = str_remove(Dilution,"\\.raw"),
+    Wash = str_remove(Wash,"\\.raw"),
+    Compound = replace(Compound, Compound == "#N/A", "TIC"),
+    Compound = recode(Compound, !!!replacements),  # Apply replacements
+    Sequence = as.numeric(Sequence),
+    Dilution = as.factor(Dilution)
+  ) %>%
+  select(-Batch,-Exp) %>%
+  arrange(Date) %>%
+  filter(#Sample %in% c("Process", "NIST"),
+         Adduct != "[M35H2-H]",
+        Adduct != "[M5H2+H]",
+        Compound != "Isoleucine-13C6",
+        Compound != "Arginine-13C6") %>%
+  group_by(Wash, Sample, Compound, Charge) %>%
+  mutate(Replicate = row_number()) %>%
+ ungroup() %>%
+  select(1:5, Replicate, everything()) %>%
+  mutate(Sample = ifelse(Wash == "NoFilter" & Sample == "Blank", "Reference", Sample)) %>%
+   filter(Compound != "TIC") 
+
+# Get unique washes to replicate Reference for each wash
+unique_washes <- unique(data5$Wash)
+print(unique_washes)
+
+# Add Reference sample for all washes except "NoFilter"
+data5 <- data5 %>%
+  bind_rows(
+    data5 %>%
+      filter(Sample == "Reference") %>%
+      select(-Wash) %>%  # Remove the existing Wash column
+      crossing(Wash = unique(data5$Wash[data5$Wash != "NoFilter"]))  # Add each wash except "NoFilter"
+  ) %>%
+filter(Wash != "NoFilter") %>%
+filter(Wash %in% c("NoFilter", "22x", "08x", "04x","NoWash","PPT")) %>%
+   mutate(
+    Sample = case_when(
+      Sample == "Reference" ~ "Solvent",
+      Sample == "Blank" ~ "Process",
+      TRUE ~ Sample))  
+
+unique_washes <- unique(data5$Wash) %>% print()
+unique_sample <- unique(data5$Sample) %>% print()
+
+
+
+data_intensity <- data5 %>%
+  select(Chromatograms, Compound, Intensities) %>%
+  separate_wider_delim(Intensities,
+                       delim = ";",
+                      names_sep = "",
+                      too_few = "align_start") %>%
+  mutate(across(3:ncol(.), ~ as.numeric(gsub(",", ".", .))))
+
+  
+data_time <- data5 %>%
+  select(Chromatograms,Compound, Times) %>%
+  separate_wider_delim(Times,
+                       delim = ";",
+                       names_sep = "",
+                       too_few = "align_start") %>%
+  mutate(across(3:ncol(.), ~ as.numeric(gsub(",", ".", .))))
+
+
+combined_data <- data5 %>%
+  select(-Intensities,-Times) %>%
+  right_join(data_time, by = c("Chromatograms","Compound")) %>%
+  right_join(data_intensity, by = c("Chromatograms","Compound"))
+
+
+long_data_dilu <- combined_data %>%
+  filter(Date == "241009",
+         Compound %in% c(
+           #"Indole-d6",
+           "Leucine-d10",
+           #"GlutamicAcid-d5",
+           "Carnitine-d9",
+           #"Tryptophan-d5",
+           #"StearicAcid-d35",
+           #"CholicAcid-d4",
+           "Glucose-13C6"
+         ), 
+       Wash != "08x",) %>%
+    pivot_longer(
+    cols = c(starts_with("Times"), starts_with("Intensities")),
+    names_to = c(".value", "Scan"),
+    names_pattern = "(Times|Intensities)(\\d+)") %>%
+    mutate(Scan = as.numeric(Scan)) %>%
+    mutate(Average = rollmean(Intensities, k = 5, fill = NA, align = "left")) %>%
+  distinct()
+
+# Define axis and zoom settings
+x_limits <- c(0, 14)
+zoom_limits <- c(0, 14)
+vline_positions <- c(0.79, 2.2)
+
+# Filter data
+filtered_data_dilu <- long_data_dilu %>%
+  filter(
+    between(Times, x_limits[1], x_limits[2]),
+    Compound == "Glucose-13C6",
+    Wash == "NoWash",
+    Sample != "Process"
+  ) %>%
+  mutate(Wash = factor(Wash, levels = c("22x", "08x", "NoWash", "PPT")))
+
+# Summarise per scan/sample
+summary_nowash_plot<- filtered_data_dilu %>%
+  filter(Sample %in% c("NIST", "Solvent"), Date == "241009") %>%
+  group_by(Compound, Scan, Wash, Sample, Dilution) %>%
+  summarise(
+    avg_time = mean(Times, na.rm = TRUE),
+    NIST_n = sum(!is.na(Average[Sample == "NIST"])),
+    NIST_mean = mean(Average[Sample == "NIST"], na.rm = TRUE),
+    NIST_se = sd(Average[Sample == "NIST"], na.rm = TRUE) / sqrt(NIST_n),
+    Solvent_n = sum(!is.na(Average[Sample == "Solvent"])),
+    Solvent_mean = mean(Average[Sample == "Solvent"], na.rm = TRUE),
+    Solvent_se = sd(Average[Sample == "Solvent"], na.rm = TRUE) / sqrt(Solvent_n),
+    .groups = "drop"
+  ) %>%
+  group_by(Compound, Scan, Wash) %>%
+  mutate(
+    Solvent_mean = dplyr::first(Solvent_mean[Sample == "Solvent" & !is.na(Solvent_mean)]),
+    Solvent_se = dplyr::first(Solvent_se[Sample == "Solvent" & !is.na(Solvent_se)]),
+    Solvent_n = dplyr::first(Solvent_n[Sample == "Solvent" & !is.na(Solvent_n)])
+  ) %>%
+  ungroup() %>%
+  filter(Sample != "Solvent") %>%
+  mutate(
+    ME_NS_mean = ((NIST_mean / Solvent_mean) * 100) - 100,
+    ME_NS_se = abs((NIST_mean / Solvent_mean) * 100) *
+      sqrt((NIST_se / NIST_mean)^2 + (Solvent_se / Solvent_mean)^2),
+    df = pmin(NIST_n, Solvent_n) - 1,
+    t_val = qt(0.975, df = df),
+    ME_NS_lower = ME_NS_mean - t_val * ME_NS_se,
+    ME_NS_upper = ME_NS_mean + t_val * ME_NS_se,
+    NIST_lower = NIST_mean - t_val * NIST_se,
+    NIST_upper = NIST_mean + t_val * NIST_se,
+    Solvent_lower = Solvent_mean - t_val * Solvent_se,
+    Solvent_upper = Solvent_mean + t_val * Solvent_se
+  )  %>%
+  mutate(
+    # Standard error of the difference
+    se_diff = sqrt(NIST_se^2 + Solvent_se^2),
+
+    # t-statistic for Welch's t-test
+    t_stat = (NIST_mean - Solvent_mean) / se_diff,
+
+    # Welch-Satterthwaite degrees of freedom
+    df_welch = (NIST_se^2 + Solvent_se^2)^2 /
+      ((NIST_se^4 / (NIST_n - 1)) + (Solvent_se^4 / (Solvent_n - 1))),
+
+    # two-sided p-value
+    p_value = 2 * pt(-abs(t_stat), df = df_welch)
+  ) %>%
+mutate(
+    Dilution = recode(as.character(Dilution),
+      "100" = "100%",
+      "050" = "50%",
+      "025" = "25%",
+      "010" = "10%"
+    ),
+    Dilution = factor(Dilution, levels = c("100%", "50%", "25%", "10%"))
+  )
+
+
+# Plot B: Zoomed matrix effect + significance
+plot_nowash_dilution <- summary_nowash_plot %>%
+  filter(between(avg_time, zoom_limits[1], zoom_limits[2])) %>%
+  ggplot(aes(x = avg_time, y = ME_NS_mean, color = Dilution, fill = Dilution)) +
+  geom_ribbon(aes(ymin = ME_NS_lower, ymax = ME_NS_upper), alpha = 0.2, color = NA) +
+  geom_line(size = 0.8) +
+  #geom_segment(data = sig_regions_ME, aes(x = xmin, xend = xmax, y = y, yend = y), color = "black", size = 0.8) +
+  #geom_text(data = sig_regions_ME, aes(x = (xmin + xmax)/2, y = label_y, label = "*"), size = 6, fontface = "bold", color = "black") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  geom_vline(xintercept = vline_positions, linetype = "dotted", color = "black") +
+  facet_grid(~Dilution ~Wash + Compound) +
+  #coord_cartesian(ylim = c(global_min_y, global_max_y)) +
+    labs( 
+      title = bquote(atop("PLR unwashed plasma", "Glucose -"^{13}*"C"[6])),
+   x = "Retention Time (min)",
+  y = "Matrix Effect (%)") +
+  theme_minimal(base_size = 14) +
+ theme(
+  legend.position = "none",
+   strip.text = element_blank(),        
+  #strip.text.y = element_blank(),
+  #strip.text.x = element_blank(),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  axis.line = element_line(color = "black"),      # ← keep axis line
+  axis.ticks = element_line(color = "black"),      # ← keep ticks
+   plot.title = element_text(hjust = 0.5, size = 14) # center title
+)
+  
+
+# Show final plot
+print(plot_nowash_dilution)
+
+
+```
+
+## Figure SI-15. Dilution MS spectra
 
 ### Data + Plot
 
-```{r figure-si-5-data-plot}
+```{r figure-si-15-plot}
 # Load saved spectra
 combined_spectra_loaded <- readRDS(here("Data","combined_mass_spectra_241009_NoWash.rds"))
 
@@ -6808,7 +8365,7 @@ print(MS_dilution)
 
 ### Nowash Glucose extract MS:
 
-```{r figure-si-5-nowash-glucose-extract-ms}
+```{r figure-si-15-extract-nowash-ms}
 # ============================================================
 # Extract Nowash dilution mass spectra using xcmsRaw/raw scan index
 # Positive scans only
@@ -6826,7 +8383,7 @@ vline_positions <- c(0.78, 2.2)   # RT in minutes
 rt_targets <- vline_positions
 scan_labels <- paste("RT", rt_targets)
 
-raw_folder <- "C:/Users/DanielMalheiro/Downloads/Exp7-Gradient and Dilution/mzML-PAN"
+raw_folder <- dilution_mzml_folder
 
 raw_cache_file <- here("Data", "combined_mass_spectra_241009_Nowash_Glucose_13C6_raw.rds")
 processed_file <- here("Data", "glucose_nowash_spectra_processed.rds")
@@ -7137,7 +8694,7 @@ print(MS_glucose_nowash_dilution)
 
 ### PPT leucine extract MS:
 
-```{r figure-si-5-ppt-leucine-extract-ms}
+```{r figure-si-15-extract-ppt-ms}
 # ============================================================
 # Extract PPT dilution mass spectra using xcmsRaw/raw scan index
 # Positive scans only
@@ -7154,7 +8711,7 @@ mz_range <- c(141.9, 142.2)
 rt_targets <- c(0.79, 10.9)   # RT in minutes
 scan_labels <- paste("RT", rt_targets)
 
-raw_folder <- "C:/Users/DanielMalheiro/Downloads/Exp7-Gradient and Dilution/mzML-PAN"
+raw_folder <- dilution_mzml_folder
 
 raw_cache_file <- here("Data", "combined_mass_spectra_241009_PPT_Leucine_d10_raw.rds")
 processed_file <- here("Data", "leucine_ppt_spectra_processed.rds")
@@ -7455,7 +9012,7 @@ print(MS_leucine_ppt_dilution)
 
 ### Combine
 
-```{r figure-si-5-combine}
+```{r figure-si-15-combine}
 # ---- Combine ----
 combined_diluplotms <- MS_glucose_nowash_dilution |  MS_leucine_ppt_dilution
  
@@ -7464,10 +9021,10 @@ print(combined_diluplotms)
 
 ### Export (PNG + TIFF)
 
-```{r figure-si-5-export-png-tiff}
+```{r figure-si-15-export}
 # Save PNG
 ggsave(
-  filename = file.path(output_dir, "Figure_SI-5.png"),
+  filename = file.path(output_dir, "Figure_SI-15.png"),
   plot = combined_diluplotms,
   width = 20,
   height = 10,
@@ -7477,7 +9034,7 @@ ggsave(
 
 # Save TIFF
 ggsave(
-  filename = file.path(output_dir, "Figure_SI-5.tiff"),
+  filename = file.path(output_dir, "Figure_SI-15.tiff"),
   plot = combined_diluplotms,
   width = 20,
   height = 10,
@@ -7488,1606 +9045,655 @@ ggsave(
 )
 ```
 
-## Figure SI-6. Leucine-d10 EIC in solvent blanks
+## Figure SI-16. Isoleucine spike
 
-### Data and Plot: Leucine-d10 EIC with replicatets of solvent blank 3- 6 mins
+```{r figure-si-16-setup}
+# ===============================
+# Settings
+# ===============================
 
-```{r figure-si-6-data-and-plot-leucine-d10-eic-with-replicatets-of-solvent-blank-3-6-mins}
-# ---- Data and Plot: Leucine-d10 EIC with replicatets of solvent blank 3- 6 mins ----
-solvent_leucine <- long_data %>% 
-  filter(
-    Compound == "Leucine-d10",
-    Wash == "NoWash",
-    Sample == "Solvent",
-    between(Times, 3, 6),
-    Replicate %in% 1:8
-  ) %>%
-  ggplot(aes(x = Times, y = Average, color = as.factor(Replicate))) +
+ppm <- 3
+target_mz <- 138.1220  # IsoL-C13 [M+H]+
+
+eic_cache_file <- here("Data", "eic_list2.rds")
+
+# Set to TRUE only when you want to force re-extraction
+force_reextract <- FALSE
+
+# ===============================
+# Function to extract EIC
+# ===============================
+
+extract_eic <- function(file_name, target_mz, ppm, polarity_label = "positive") {
   
-  geom_line(size = 0.8) +
+  file_path <- file.path(mzml_folder, file_name)
   
-  facet_wrap(~ Replicate, ncol = 8, labeller = label_both) +
+  raw_data <- xcmsRaw(file_path)
   
-  scale_y_continuous(labels = scientific) +
-  
-  labs(
-    #title = "Leucine-d10 EIC across replicates of solvent blank (3–6 min)",
-    x = "Time (min)",
-    y = "Intensity",
-    color = "Replicate"
-  ) +
-    theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "none",
-    legend.title = element_text(face = "bold"),
-    legend.text = element_text(size = 10),
-    axis.line = element_line(color = "black"),
-    axis.ticks = element_line(color = "black"),
-    panel.grid = element_blank(),
-    strip.text = element_text(size = 10),
-    plot.title = element_text(size = 14, face = "bold", hjust = 0.5)
-  )
-
-print(solvent_leucine)
-
-# Save
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-6.png"),
-  plot = solvent_leucine,
-  width = 20, height = 20, units = "cm", dpi = 1000
-)
-
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-6.tiff"),
-  plot = solvent_leucine,
-  width = 20, height = 20, units = "cm",
-  dpi = 1000, device = "tiff", compression = "lzw"
-)
-
-```
-
-## Figure SI-7. Contaminant MS (image)
-
-```{r figure-si-7-setup}
-## Screenshot from FreeStyle
-```
-
-## Figure SI-8. Summed EICs of contaminants
-
-### Data: Extracting background contaminates from each files
-
-```{r figure-si-8-data-extracting-background-contaminates-from-each-files}
-# ---- Data: Extracting background contaminates from each files ----
-
-# # Define target masses
-# #annotate_masses2 <- c(654.9935, 653.9914, 652.9877, 651.9808, 650.9743, 649.9660, 648.9597, 647.9515)
-# annotate_masses3 <- annotated_peaks$mz
-# 
-# # ppm tolerance
-# ppm <- 2
-# 
-# # Define all mzML files
-# mzml_files <- list.files("C:/Users/DanielMalheiro/Downloads/Exp7-241008/mzML-PAN", pattern = "*.mzML", full.names = TRUE)
-# 
-# # Function to extract EIC from raw file for one mass
-# extract_mass_eic <- function(file_path, target_mz, ppm, file_id) {
-#   raw_data <- xcmsRaw(file_path)
-# 
-#   # Calculate mz range
-#   mz_tol <- (ppm / 1e6) * target_mz
-#   mz_range <- c(target_mz - mz_tol, target_mz + mz_tol)
-# 
-#   # Get positive mode scans
-#   positive_scans <- which(raw_data@polarity == "positive")
-# 
-#   if (length(positive_scans) > 0) {
-#     eic <- rawEIC(raw_data, mzrange = mz_range)
-# 
-#     df <- data.frame(
-#       scan = seq_along(positive_scans),
-#       rt = raw_data@scantime[positive_scans] / 60,
-#       intensity = eic$intensity[positive_scans],
-#       mass = target_mz,
-#       file = basename(file_path)
-#     ) %>%
-#       mutate(average_intensity = rollmean(intensity, k = 5, fill = NA, align = "left"))
-# 
-#     return(df)
-#   } else {
-#     return(NULL)
-#   }
-# }
-# 
-# # Loop through files and masses
-# all_eics <- list()
-# 
-# for (file in mzml_files) {
-#   message("Processing: ", basename(file))
-#   for (mass in annotate_masses3) {
-#     eic_data <- extract_mass_eic(file, mass, ppm, basename(file))
-#     if (!is.null(eic_data)) {
-#       all_eics[[length(all_eics) + 1]] <- eic_data
-#     }
-#   }
-# }
-# 
-# # Combine all into one dataframe
-# eic_df <- bind_rows(all_eics)
-
-#saveRDS(eic_df, file = "eic_df_newions.rds")
-largelist_contaminants <- readRDS(here("Data","eic_df_newions.rds"))
-
-summed_signals <- largelist_contaminants %>%
-  group_by(file, rt) %>%
-  summarise(total_intensity = sum(average_intensity, na.rm = TRUE), .groups = "drop") %>%
-  mutate(
-    file_base = str_remove(file, "\\.mzML$"),
-    Sequence  = as.numeric(str_split(file_base, "-", simplify = TRUE)[,5]),
-    Wash      = str_split(file_base, "-", simplify = TRUE)[,6],
-    Sample    = str_split(file_base, "-", simplify = TRUE)[,7]
-  ) %>%
-  arrange(Sample, Wash) %>%
-  group_by(Sample, Wash) %>%
-  mutate(Replicate = dense_rank(Sequence),
-         Replicate = as.factor(Replicate)) %>%
-  ungroup() %>%
-  group_by(file) %>%
-  arrange(rt, .by_group = TRUE) %>%
-  mutate(scan = row_number()) %>%
-  ungroup()
-
-
-
-# Set the Wash factor with desired order
-summed_signals$Wash <- factor(summed_signals$Wash, levels = c("22x", "08x", "04x", "NoWash", "PPT"))
-
-# Prepare the combined facet label
-summed_signals <- summed_signals %>%
-  mutate(Facet_Label = paste0(Sequence, " | ", Wash, " | ", Sample))
-
-# Plot
-allinter <- summed_signals %>%
-  filter(
-    rt >= 0 & rt <= 10,
-    !is.na(Wash),
-    Sequence %in% 8:45) %>%
-  arrange(Sequence) %>%
-  ggplot(aes(x = rt, y = total_intensity, color = as.factor(Sequence), group = Replicate)) +
-  geom_line(size = 0.8, alpha = 0.8) +
-  facet_wrap(~ Facet_Label, ncol = 6) +
-  scale_x_continuous(
-  breaks = seq(0, 10, by = 2.5),
-  labels = c("0", "", "5", "", "10")
-) + 
-  labs(
-    #title = "Summed EICs for All Target Masses",
-    x = "Retention Time (min)",
-    y = "Summed Intensity of Interfering Ions",
-    color = "Sequence | Wash | Sample"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "none",
-    panel.grid = element_blank(),
-    axis.line = element_line(color = "black"),
-    axis.ticks = element_line(color = "black"),
-    strip.text = element_text(size = 8,
-    #plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
-    #axis.title = element_text(face = "bold")
-  )
-)
-# Print the plot
-print(allinter)
-
-#---------------------------------------------
-# Save
-#---------------------------------------------
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-8.png"),
-  plot = allinter,
-  width = 20, height = 20, units = "cm", dpi = 1000
-)
-
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-8.tiff"),
-  plot = allinter,
-  width = 20, height = 20, units = "cm",
-  dpi = 1000, device = "tiff", compression = "lzw"
-)
-
-
-
-```
-
-## Figure SI-9. Contaminant and matrix-effect overlap
-
-```{r figure-si-9-setup}
-# Define plot range and lines
-zoomlimits22only <- c(3, 6)
-vline_positions22only <- c(4.375, 4.835)
-
-# ---- PLOT A: Zoomed-In Matrix Effect for 22x ----
-plot_matrix_effect_zoom_22xonly <- summary_table_2 %>%
-  filter(
-    Comparison == "NIST / Solvent",
-    Wash == "PLR 22x wash",
-    between(avg_time, zoomlimits22only[1], zoomlimits22only[2])
-  ) %>%
-  ggplot(aes(x = avg_time, y = ME_NS_mean)) +
-  geom_ribbon(
-    aes(ymin = ME_NS_lower, ymax = ME_NS_upper),
-    fill = "red", alpha = 0.2
-  ) +
-  geom_line(color = "red", size = 0.8) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black", size = 0.7) +
-  geom_vline(xintercept = vline_positions22only, linetype = "dotted", color = "black", size = 0.8) +
-  coord_cartesian(ylim = c(global_min_y, global_max_y)) +
-  scale_x_continuous(
-    breaks = seq(3, 6, by = 1),
-      ) +
-  labs(
-    #title = "Matrix Effect (NIST / Solvent) – 22x only",
-    x = NULL,
-    y = "Matrix Effect (%)"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "none",
-    strip.text = element_blank(),
-    panel.grid = element_blank(),
-    axis.line = element_line(color = "black"),
-    axis.ticks = element_line(color = "black")
-  )
-
-# ---- PLOT B: Interfering Ions (Summed Trace) for NIST-22x ----
-average_nist_22x <- summed_signals %>%
-  filter(
-    Sequence %in% 8:45,
-    Sample == "NIST", Wash == "22x",
-    between(rt, zoomlimits22only[1], zoomlimits22only[2]),
-    Replicate == 1
-  ) %>%
-  group_by(scan) %>%
-  summarise(
-    total_intensity = sum(total_intensity, na.rm = TRUE),
-    rt = mean(rt),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    rolling_intensity = rollmean(total_intensity, k = 5, fill = NA, align = "right")
-  )
-
-nist_22x_rep <- ggplot(average_nist_22x, aes(x = rt)) +
-  geom_line(aes(y = rolling_intensity), color = "blue", size = 0.8) +
-  geom_vline(xintercept = vline_positions22only, linetype = "dotted", color = "black", size = 0.8) +
-  scale_y_continuous(labels = scales::scientific) +
-  scale_x_continuous(
-    breaks = seq(3, 6, by = 1),
-      ) +
-  labs(
-    #title = "Summed Interfering Ion Signal",
-    x = "Retention Time (min)",
-    y = "Summed Intensity"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.grid = element_blank(),
-    axis.line = element_line(color = "black"),
-    axis.ticks = element_line(color = "black")
-  )
-
-# ---- Combine A + B Vertically ----
-pub_ready_plot <- plot_matrix_effect_zoom_22xonly / nist_22x_rep
-
-# ---- Display ----
-print(pub_ready_plot)
-
-
-# Save PNG
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-9.png"),
-  plot = pub_ready_plot,
-  width = 20,
-  height = 10,
-  units = "cm",
-  dpi = 1000
-)
-
-# Save TIFF
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-9.tiff"),
-  plot = pub_ready_plot,
-  width = 20,
-  height = 10,
-  units = "cm",
-  dpi = 1000,
-  device = "tiff",
-  compression = "lzw"
-)
-
-```
-
-## Figure SI-10. Effect of PLR wash intensity on contaminant signals
-
-```{r figure-si-10-setup}
-#---------------------------------------------
-# 1. Filter and recode wash labels
-#---------------------------------------------
-wash_subset <- summarized_data %>%
-  filter(homologue_id %in% c(1,14,16,17,18,19),
-         Sequence <= 45,
-         Sample == "Blank",
-         Wash %in% c("NoWash", "22x", "08x", "04x")) %>%
-  mutate(
-    Wash = recode(Wash,
-                  "22x"    = "PLR 22x Wash",
-                  "08x"    = "PLR 8x Wash",
-                  "04x"    = "PLR 4x Wash",
-                  "NoWash" = "PLR Unwashed"),
-    Wash = factor(Wash,
-                  levels = c("PLR Unwashed", "PLR 4x Wash",
-                             "PLR 8x Wash", "PLR 22x Wash")),
-    
-    homologue_id = factor(
-      homologue_id,
-      levels = c(1, 14, 16, 17, 18, 19),
-      labels = c(
-        "Homologue id 1",
-        "Homologue id 14",
-        "Homologue id 16",
-        "Homologue id 17",
-        "Homologue id 18",
-        "Homologue id 19"
-      )
-    )
-  )
-
-#---------------------------------------------
-# 2. Create log-transformed column (safe)
-#---------------------------------------------
-wash_subset <- wash_subset %>%
-  mutate(
-    log_intensity = log10(pmax(Intensity, 1e-6))
-  )
-
-#---------------------------------------------
-# 3. Pairwise testing (log scale)
-#---------------------------------------------
-stat_test_raw <- wash_subset %>%
-  group_by(homologue_id) %>%
-  pairwise_t_test(
-    log_intensity ~ Wash,
-    p.adjust.method = "BH"
-  )
-
-stat_sig <- stat_test_raw
-
-#---------------------------------------------
-# 4. Compute per-facet max (for brackets)
-#---------------------------------------------
-y_max <- wash_subset %>%
-  group_by(homologue_id) %>%
-  summarise(max_y = max(log_intensity, na.rm = TRUE))
-
-stat_sig <- stat_sig %>%
-  left_join(y_max, by = "homologue_id") %>%
-  group_by(homologue_id) %>%
-  mutate(
-    bracket_index = row_number(),
-    y.position = max_y + 0.12 + 0.10 * (bracket_index - 1)   # ⭐ tighter spacing
-  ) %>%
-  ungroup()
-
-#---------------------------------------------
-# 5. Boxplot (log values plotted directly)
-#---------------------------------------------
-box_sig_plot <- wash_subset %>%
-  ggplot(aes(x = Wash, y = log_intensity, fill = Wash)) +
-  
-  geom_boxplot(outlier.alpha = 0.25, linewidth = 0.5) +
-  facet_wrap(~ homologue_id, scales = "free_y", ncol = 3) +
-
-  scale_fill_manual(values = c(
-    "PLR Unwashed" = "grey40",
-    "PLR 4x Wash"  = "#e31a1c",
-    "PLR 8x Wash"  = "#33a02c",
-    "PLR 22x Wash" = "#1f78b4"
-  )) +
-
-  stat_pvalue_manual(
-    stat_sig,
-    label = "p.adj.signif",
-    size = 3,
-    tip.length = 0.01
-  ) +
-
-  # ⭐ Clean numeric log axis (1,2,3...)
-  scale_y_continuous(
-    name = "Log10 Summed Intensity",
-    breaks = seq(
-      floor(min(wash_subset$log_intensity, na.rm = TRUE)),
-      ceiling(max(wash_subset$log_intensity, na.rm = TRUE)),
-      by = 1
-    ),
-    expand = expansion(mult = c(0, 0.10))   # ⭐ reduced empty space
-  ) +
-
-  labs(
-    x = "Wash Condition"
-  ) +
-
-  theme_bw(base_size = 14) +
-  theme(
-    strip.text  = element_text(size = 12, face = "bold"),
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "none"
-  )
-
-box_sig_plot
-
-#---------------------------------------------
-# Save
-#---------------------------------------------
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-10.png"),
-  plot = box_sig_plot,
-  width = 20, height = 20, units = "cm", dpi = 1000
-)
-
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-10.tiff"),
-  plot = box_sig_plot,
-  width = 20, height = 20, units = "cm",
-  dpi = 1000, device = "tiff", compression = "lzw"
-)
-```
-
-## Figure SI-11. Injection time
-
-### Data
-
-```{r figure-si-11-data}
-# ---- Data ----
-
-# Load the mzML file
-file_path <- file.path(
-  mzml_folder,
-"241008-Exp-PAN-1-035-NoWash-NIST.mzML")
-raw_data <- xcmsRaw(file_path)
-raw_data <- readMSData(file_path, mode = "onDisk")
-
-# Extract full scan-level metadata
-scan_info <- fData(raw_data)
-
-# Inspect available metadata columns (optional)
-colnames(scan_info)
-
-# Filter for positive polarity scans
-# Polarity values: 1 = positive, 0 = negative
-positive_scans <- scan_info %>%
-  filter(polarity == 1)
-
-# Extract retention time (convert to minutes) and injection time
-scan_df <- data.frame(
-  retention_time = positive_scans$retentionTime / 60,
-  injection_time = positive_scans$injectionTime
-)
-```
-
-### plot
-
-```{r figure-si-11-plot}
-# Define zoom range and vertical line positions
-zoom_limits <- c(0, 3)   # Zoomed-in range
-vline_positions <- rt_df$RT_min  # Vertical line positions
-
-# Create the injection time plot with formatting for publication
-Ioninjection_plot <- scan_df %>%
-  filter(between(retention_time, zoom_limits[1], zoom_limits[2])) %>%
-  ggplot(aes(x = retention_time, y = injection_time)) +
-  geom_vline(xintercept = vline_positions, linetype = "dotted", color = "black") +  # Add vertical lines
-  geom_line(color = "darkgreen", size = 0.75) +
-    geom_text(data = rt_df,
-            aes(x = RT_min, y = 5, label = scan_label),
-            inherit.aes = FALSE,
-            angle = 90, vjust = -1, size = 4) +
-  geom_line(size = 0.75, alpha = 0.6) +
-  labs(
-    #title = "Injection Time vs Retention Time (Positive Polarity)",
-    x = "Retention Time (min)",
-    y = "Injection Time (ms)"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.grid = element_blank(),
-    axis.line = element_line(color = "black"),
-    axis.ticks = element_line(color = "black"),
-    axis.title.x = element_text(),
-    axis.title.y = element_text()
-  )
-
-# Print the plot
-print(Ioninjection_plot)
-
-# Save PNG
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-11.png"),
-  plot = Ioninjection_plot,
-  width = 20,
-  height = 10,
-  units = "cm",
-  dpi = 1000
-)
-
-# Save TIFF
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-11.tiff"),
-  plot = Ioninjection_plot,
-  width = 20,
-  height = 10,
-  units = "cm",
-  dpi = 1000,
-  device = "tiff",
-  compression = "lzw"
-)
-```
-
-## Figure SI-12. EIC of Acetyl-Carnitine and Glucose-13C6
-
-### Data and Plot:
-
-```{r figure-si-12-data-and-plot}
-# Load the mzML file
-file_nowash <- file.path(
-  mzml_folder,"241008-Exp-PAN-1-035-NoWash-NIST.mzML")
-
-if (!exists("raw_data_glu")) {
-  raw_data_glu <- xcmsRaw(file_nowash)
-} else {
-  message("'raw_data_glu' already exists in the environment.")
-}
-
-ppm <- 2
-
-# Define function to extract EIC for a target m/z
-extract_eic <- function(raw_data, target_mz, ppm, polarity_label = "positive") {
   mz_tol <- (ppm / 1e6) * target_mz
   mz_range <- c(target_mz - mz_tol, target_mz + mz_tol)
-
-  positive_scans <- which(raw_data@polarity == polarity_label)  # 1 = positive
-
+  
+  positive_scans <- which(raw_data@polarity == polarity_label)
+  
   eic <- rawEIC(raw_data, mzrange = mz_range)
-
+  
   eic_df <- data.frame(
-    rt = raw_data@scantime[positive_scans] / 60,  # Convert to minutes
+    rt = raw_data@scantime[positive_scans] / 60,
     intensity = eic$intensity[positive_scans],
     scan = seq_along(positive_scans),
-    target = paste0("m/z ", round(target_mz, 4))
+    target = paste0("m/z ", round(target_mz, 4)),
+    file_name = rep(file_name, length(positive_scans))
   ) %>%
-    mutate(average_intensity = rollmean(intensity, k = 5, fill = NA, align = "left"))
-
+    mutate(
+      average_intensity = zoo::rollmean(
+        intensity,
+        k = 5,
+        fill = NA,
+        align = "left"
+      )
+    )
+  
   return(eic_df)
 }
 
-# Create mapping from m/z to metabolite name
-target_labels <- c(
-  `204.1173` = "Glucose-13C6",
-  `204.1230` = "Acetyl-carnitine"
+# ===============================
+# List of mzML files
+# ===============================
+
+files <- c(
+  "241008-Exp-PAN-1-035-NoWash-NIST.mzML",
+  "241008-Exp-PAN-1-036-NoWash-NIST.mzML",
+  "241008-Exp-PAN-1-037-NoWash-NIST.mzML",
+  "241008-Exp-PAN-1-014-22x-NIST.mzML",
+  "241008-Exp-PAN-1-015-22x-NIST.mzML",
+  "241008-Exp-PAN-1-016-22x-NIST.mzML",
+  "241008-Exp-PAN-1-028-04x-NIST.mzML",
+  "241008-Exp-PAN-1-029-04x-NIST.mzML",
+  "241008-Exp-PAN-1-030-04x-NIST.mzML",
+  "241008-Exp-PAN-1-021-08x-NIST.mzML",
+  "241008-Exp-PAN-1-022-08x-NIST.mzML",
+  "241008-Exp-PAN-1-023-08x-NIST.mzML",
+  "241008-Exp-PAN-1-042-PPT-NIST.mzML",
+  "241008-Exp-PAN-1-043-PPT-NIST.mzML",
+  "241008-Exp-PAN-1-044-PPT-NIST.mzML"
 )
 
-target_labels_plot <- c(
-  `204.1173` = "Glucose-{}^{13}*C[6]",
-  `204.1230` = "Acetyl-carnitine"
+# ===============================
+# Extract EICs only if not already saved
+# ===============================
+
+dir.create(
+  dirname(eic_cache_file),
+  recursive = TRUE,
+  showWarnings = FALSE
 )
 
-eic_df_1 <- extract_eic(raw_data_glu, 204.1173, ppm) %>%
-  mutate(
-    target = target_labels["204.1173"],
-    target_plot = target_labels_plot["204.1173"]
+if (file.exists(eic_cache_file) && !force_reextract) {
+  
+  message("Loading saved EIC data from: ", eic_cache_file)
+  eic_list2 <- readRDS(eic_cache_file)
+  
+} else {
+  
+  message("No saved EIC data found, or force_reextract = TRUE. Extracting EICs...")
+  
+  eic_list2 <- lapply(files, function(file_name) {
+    extract_eic(file_name, target_mz, ppm)
+  })
+  
+  saveRDS(
+    eic_list2,
+    file = eic_cache_file
   )
+  
+  message("Saved EIC data to: ", eic_cache_file)
+}
 
-eic_df_2 <- extract_eic(raw_data_glu, 204.1230, ppm) %>%
+# ===============================
+# Combine all EICs
+# ===============================
+
+combined_eic_df <- bind_rows(eic_list2)
+
+# ===============================
+# Filter and parse file names
+# ===============================
+
+combined_eic_df_filtered <- combined_eic_df %>%
+  filter(rt >= 2.6 & rt <= 3) %>%
+  separate(
+    file_name,
+    into = c(
+      "Date",
+      "Exp",
+      "PAN",
+      "Batch",
+      "Sequence",
+      "Wash",
+      "Sample"
+    ),
+    sep = "-",
+    remove = FALSE
+  ) %>%
   mutate(
-    target = target_labels["204.1230"],
-    target_plot = target_labels_plot["204.1230"]
-  )
-
-combined_eic_df <- bind_rows(eic_df_1, eic_df_2)
-
-combined_eic_df_scaled <- combined_eic_df %>%
-  group_by(target, target_plot) %>%
-  mutate(scaled_intensity = average_intensity / max(average_intensity, na.rm = TRUE)) %>%
+    Sample = str_remove(Sample, "\\.mzML"),
+    Sequence = as.numeric(Sequence),
+    Wash = factor(
+      Wash,
+      levels = c("22x", "08x", "04x", "NoWash", "PPT")
+    )
+  ) %>%
+  select(-Exp, -Batch) %>%
+  arrange(Date) %>%
+  group_by(Wash, Sample) %>%
+  mutate(
+    Replicate = dense_rank(Sequence)
+  ) %>%
   ungroup()
 
-chromatogram_overlay_scaled <- combined_eic_df_scaled %>%
-  filter(between(rt, 0, 5)) %>%
-  ggplot(aes(x = rt, y = scaled_intensity, color = target_plot)) +
-  geom_line(linewidth = 0.8) +
+print(combined_eic_df_filtered)
+
+# ===============================
+# Plot extracted EICs
+# ===============================
+
+combined_eic_plot <- combined_eic_df_filtered %>%
+  ggplot(aes(x = rt, y = intensity, color = Wash)) +
+  geom_line(linewidth = 1) +
+  facet_wrap(~Wash + Replicate, ncol = 3) +
   labs(
+    title = paste("Overlayed EICs (", ppm, "ppm, Positive Mode)"),
     x = "Retention Time (min)",
-    y = "Normalized Intensity",
-    color = "Compound"
+    y = "Intensity",
+    color = "Wash"
   ) +
-  scale_color_discrete(labels = scales::label_parse()) +
-  theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "right",
-    #legend.title = element_text(face = "bold"),
-    legend.text = element_text(size = 11),
-    panel.grid = element_blank(),
-    axis.line = element_line(color = "black"),
-    axis.ticks = element_line(color = "black"),
-    #axis.title = element_text(face = "bold"),
-    plot.title = element_text(hjust = 0.5)
-  )
+  theme_minimal()
 
-print(chromatogram_overlay_scaled)
-
-# Save
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-12.png"),
-  plot = chromatogram_overlay_scaled,
-  width = 20,
-  height = 10,
-  units = "cm",
-  dpi = 1000
-)
-
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-12.tiff"),
-  plot = chromatogram_overlay_scaled,
-  width = 20,
-  height = 10,
-  units = "cm",
-  dpi = 1000,
-  device = "tiff",
-  compression = "lzw"
-)
-
-```
-
-## Figure SI-13. Improved and worsened features
-
-```{r figure-si-13-setup}
-# ============================================================
-# Arrow plots
-# Mean correction from plot_df and plot_df_neg
-# Faceted by polarity and correction effect
-# Positive first, then negative
-# ============================================================
-
-RSD_CUTOFF <- 5
-
-# ============================================================
-# 1️⃣ Combine POS and NEG data
-# ============================================================
-
-plot_df_combined <- bind_rows(
-  plot_df %>%
-    mutate(Polarity = "Positive"),
-
-  plot_df_neg %>%
-    mutate(Polarity = "Negative")
-)
-
-result_long_combined <- bind_rows(
-  result_long %>%
-    mutate(Polarity = "Positive"),
-
-  result_long_neg %>%
-    mutate(Polarity = "Negative")
-)
-
-# ============================================================
-# 2️⃣ Prepare data for arrow plot
-# ============================================================
-
-rsd_rt_arrow_combined <- plot_df_combined %>%
-  filter(Type == "Best mean/uncorrected") %>%
-  select(Polarity, Feature, RSD_uncorrected, RSD_val) %>%
-  distinct() %>%
-  dplyr::rename(
-    Uncorrected = RSD_uncorrected,
-    Corrected   = RSD_val
-  ) %>%
-  mutate(
-    Delta_RSD = Corrected - Uncorrected,
-    Change_Class = case_when(
-      Delta_RSD <= -RSD_CUTOFF ~ "Improved",
-      Delta_RSD >=  RSD_CUTOFF ~ "Worsened",
-      TRUE                     ~ "Less affected"
-    )
-  ) %>%
-  left_join(
-    result_long_combined %>%
-      group_by(Polarity, Feature) %>%
-      summarise(
-        RT_min = mean(mean_rt, na.rm = TRUE),
-        .groups = "drop"
-      ),
-    by = c("Polarity", "Feature")
-  ) %>%
-  filter(Change_Class %in% c("Improved", "Worsened")) %>%
-  mutate(
-    Polarity = factor(
-      Polarity,
-      levels = c("Positive", "Negative")
-    ),
-    Change_Class = factor(
-      Change_Class,
-      levels = c("Improved", "Worsened")
-    )
-  )
-
-# ============================================================
-# 3️⃣ Calculate group means for dashed lines
-# ============================================================
-
-mean_lines <- rsd_rt_arrow_combined %>%
-  group_by(Polarity, Change_Class) %>%
-  summarise(
-    Mean_Uncorrected = mean(Uncorrected, na.rm = TRUE),
-    Mean_Corrected   = mean(Corrected, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    Polarity = factor(
-      Polarity,
-      levels = c("Positive", "Negative")
-    ),
-    Change_Class = factor(
-      Change_Class,
-      levels = c("Improved", "Worsened")
-    )
-  )
-
-# ============================================================
-# 4️⃣ RT axis limits
-# ============================================================
-
-min_rt <- floor(min(rsd_rt_arrow_combined$RT_min, na.rm = TRUE))
-max_rt <- 14
-
-rt_x_scale <- scale_x_continuous(
-  limits = c(min_rt, max_rt),
-  breaks = seq(min_rt, max_rt, by = 2),
-  expand = expansion(mult = c(0.02, 0.05))
-)
-
-# ============================================================
-# 5️⃣ Shared theme
-# ============================================================
-
-aligned_theme <- theme_pubr(base_size = 14) +
-  theme(
-    axis.title.x = element_text(size = 13),
-    axis.title.y = element_text(size = 13),
-    axis.line = element_line(color = "black"),
-    axis.ticks = element_line(color = "black"),
-    panel.border = element_blank(),
-    strip.text = element_text(face = "bold", size = 13),
-    plot.title = element_text(face = "bold", size = 16)
-  )
-
-# ============================================================
-# 6️⃣ Faceted arrow plot
-# ============================================================
-
-plot_all <- ggplot(rsd_rt_arrow_combined) +
-
-  geom_segment(
-    aes(
-      x = RT_min,
-      xend = RT_min,
-      y = Uncorrected,
-      yend = Corrected
-    ),
-    color = "grey40",
-    linewidth = 1,
-    alpha = 0.9,
-    arrow = arrow(length = unit(0.3, "cm"), type = "closed")
-  ) +
-
-  geom_point(
-    aes(
-      x = RT_min,
-      y = Uncorrected,
-      color = "Uncorrected"
-    ),
-    size = 2
-  ) +
-
-  geom_point(
-    aes(
-      x = RT_min,
-      y = Corrected,
-      color = "Corrected"
-    ),
-    size = 2
-  ) +
-
-  geom_hline(
-    data = mean_lines,
-    aes(yintercept = Mean_Uncorrected),
-    color = "#e31a1c",
-    linetype = "dashed",
-    linewidth = 0.8
-  ) +
-
-  geom_hline(
-    data = mean_lines,
-    aes(yintercept = Mean_Corrected),
-    color = "#1f78b4",
-    linetype = "dashed",
-    linewidth = 0.8
-  ) +
-
-  geom_text(
-    data = mean_lines,
-    aes(
-      x = Inf,
-      y = Mean_Uncorrected,
-      label = paste0("Mean Uncorrected = ", round(Mean_Uncorrected, 1), "%")
-    ),
-    hjust = 1,
-    vjust = -0.3,
-    color = "#e31a1c",
-    fontface = "bold",
-    size = 3.5
-  ) +
-
-  geom_text(
-    data = mean_lines,
-    aes(
-      x = Inf,
-      y = Mean_Corrected,
-      label = paste0("Mean Corrected = ", round(Mean_Corrected, 1), "%")
-    ),
-    hjust = 1,
-    vjust = -0.3,
-    color = "#1f78b4",
-    fontface = "bold",
-    size = 3.5
-  ) +
-
-  scale_color_manual(
-    name = NULL,
-    values = c(
-      "Uncorrected" = "#e31a1c",
-      "Corrected"   = "#1f78b4"
-    )
-  ) +
-
-  facet_grid(Change_Class ~ Polarity) +
-
-  rt_x_scale +
-
-  labs(
-    x = "Retention Time (min)",
-    y = "RSD (%)"
-  ) +
-
-  aligned_theme +
-  theme(
-    legend.position = "bottom",
-    legend.title = element_blank()
-  )
-
-plot_all
-
-# ============================================================
-# 7️⃣ Save plot
-# ============================================================
-
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-13.png"),
-  plot = plot_all,
-  width = 24,
-  height = 18,
-  units = "cm",
-  dpi = 1000
-)
-
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-13.tiff"),
-  plot = plot_all,
-  width = 24,
-  height = 18,
-  units = "cm",
-  dpi = 1000,
-  device = "tiff",
-  compression = "lzw"
-)
-```
-
-## Figure SI-14. Individual worsened features
-
-```{r figure-si-14-setup}
-# ============================================================
-# Plot corrected vs uncorrected peak areas
-# WORSENED features only — Best mean correction
-# A = Positive mode, B = Negative mode
-# Same plot size for A and B
-# ============================================================
-
-# ============================================================
-# 1. Positive mode
-# ============================================================
-
-df_worsened_mean_pos <- rsd_delta_rt %>%
-  filter(Category == "Worsened") %>%
-  select(Feature, RT_min) %>%
-  distinct()
-
-chosen_mean_pos <- plot_df %>%
-  filter(Type == "Best mean/uncorrected") %>%
-  select(Feature, Chosen, Chosen_PCI) %>%
-  distinct() %>%
-  filter(Chosen != "uncorrected") %>%
-  dplyr::rename(PCI = Chosen_PCI)
-
-val_best_mean_pos <- val_df %>%
-  inner_join(
-    chosen_mean_pos,
-    by = c("Feature", "PCI")
-  ) %>%
-  filter(CorrectionType == Chosen)
-
-uncorrected_clean_pos <- uncorrected_df %>%
-  filter(
-    Set == "Validation",
-    CorrectionType == "uncorrected"
-  ) %>%
-  dplyr::rename(UncorrectedArea = CorrectedArea) %>%
-  select(Treatment, Replicate, Feature, UncorrectedArea)
-
-val_best_worsened_pos <- val_best_mean_pos %>%
-  left_join(
-    uncorrected_clean_pos,
-    by = c("Treatment", "Replicate", "Feature")
-  ) %>%
-  filter(Feature %in% df_worsened_mean_pos$Feature) %>%
-  left_join(
-    df_worsened_mean_pos,
-    by = "Feature"
-  )
-
-facet_levels_pos <- val_best_worsened_pos %>%
-  distinct(Feature, RT_min, PCI, CorrectionType) %>%
-  mutate(
-    Correction_clean = str_remove(CorrectionType, "^corrected_")
-  ) %>%
-  arrange(RT_min, Feature) %>%
-  mutate(
-    Feature_RT = paste0(
-      Feature, " (", round(RT_min, 2), " min)\n",
-      "PCI: ", PCI, "\n",
-      "Correction: ", Correction_clean
-    )
-  ) %>%
-  pull(Feature_RT)
-
-WC_plot_df_pos <- val_best_worsened_pos %>%
-  pivot_longer(
-    cols = c(CorrectedArea, UncorrectedArea),
-    names_to = "Signal",
-    values_to = "Area"
-  ) %>%
-  mutate(
-    Signal = recode(
-      Signal,
-      "CorrectedArea"   = "Corrected Area",
-      "UncorrectedArea" = "Uncorrected Area"
-    ),
-
-    Correction_clean = str_remove(CorrectionType, "^corrected_"),
-
-    Feature_RT = paste0(
-      Feature, " (", round(RT_min, 2), " min)\n",
-      "PCI: ", PCI, "\n",
-      "Correction: ", Correction_clean
-    ),
-
-    Feature_RT = factor(Feature_RT, levels = facet_levels_pos),
-
-    Treatment = factor(
-      Treatment,
-      levels = c("22x", "08x", "04x", "NoWash", "PPT")
-    ),
-
-    Treatment = recode(
-      Treatment,
-      "22x"    = "PLR 22x wash",
-      "08x"    = "PLR 8x wash",
-      "04x"    = "PLR 4x wash",
-      "NoWash" = "PLR unwashed",
-      "PPT"    = "PPT"
-    )
-  )
-
-# ============================================================
-# 2. Negative mode
-# ============================================================
-
-df_worsened_mean_neg <- rsd_delta_rt_neg %>%
-  filter(Category == "Worsened") %>%
-  select(Feature, RT_min) %>%
-  distinct()
-
-chosen_mean_neg <- plot_df_neg %>%
-  filter(Type == "Best mean/uncorrected") %>%
-  select(Feature, Chosen, Chosen_PCI) %>%
-  distinct() %>%
-  filter(Chosen != "uncorrected") %>%
-  dplyr::rename(PCI = Chosen_PCI)
-
-val_best_mean_neg <- val_df_neg %>%
-  inner_join(
-    chosen_mean_neg,
-    by = c("Feature", "PCI")
-  ) %>%
-  filter(CorrectionType == Chosen)
-
-uncorrected_clean_neg <- uncorrected_df_neg %>%
-  filter(
-    Set == "Validation",
-    CorrectionType == "uncorrected"
-  ) %>%
-  dplyr::rename(UncorrectedArea = CorrectedArea) %>%
-  select(Treatment, Replicate, Feature, UncorrectedArea)
-
-val_best_worsened_neg <- val_best_mean_neg %>%
-  left_join(
-    uncorrected_clean_neg,
-    by = c("Treatment", "Replicate", "Feature")
-  ) %>%
-  filter(Feature %in% df_worsened_mean_neg$Feature) %>%
-  left_join(
-    df_worsened_mean_neg,
-    by = "Feature"
-  )
-
-facet_levels_neg <- val_best_worsened_neg %>%
-  distinct(Feature, RT_min, PCI, CorrectionType) %>%
-  mutate(
-    Correction_clean = str_remove(CorrectionType, "^corrected_")
-  ) %>%
-  arrange(RT_min, Feature) %>%
-  mutate(
-    Feature_RT = paste0(
-      Feature, " (", round(RT_min, 2), " min)\n",
-      "PCI: ", PCI, "\n",
-      "Correction: ", Correction_clean
-    )
-  ) %>%
-  pull(Feature_RT)
-
-WC_plot_df_neg <- val_best_worsened_neg %>%
-  pivot_longer(
-    cols = c(CorrectedArea, UncorrectedArea),
-    names_to = "Signal",
-    values_to = "Area"
-  ) %>%
-  mutate(
-    Signal = recode(
-      Signal,
-      "CorrectedArea"   = "Corrected Area",
-      "UncorrectedArea" = "Uncorrected Area"
-    ),
-
-    Correction_clean = str_remove(CorrectionType, "^corrected_"),
-
-    Feature_RT = paste0(
-      Feature, " (", round(RT_min, 2), " min)\n",
-      "PCI: ", PCI, "\n",
-      "Correction: ", Correction_clean
-    ),
-
-    Feature_RT = factor(Feature_RT, levels = facet_levels_neg),
-
-    Treatment = factor(
-      Treatment,
-      levels = c("22x", "08x", "04x", "NoWash", "PPT")
-    ),
-
-    Treatment = recode(
-      Treatment,
-      "22x"    = "PLR 22x wash",
-      "08x"    = "PLR 8x wash",
-      "04x"    = "PLR 4x wash",
-      "NoWash" = "PLR unwashed",
-      "PPT"    = "PPT"
-    )
-  )
-
-# ============================================================
-# 3. Shared plot settings
-# ============================================================
-
-shared_colors <- scale_color_manual(
-  values = c(
-    "Corrected Area"   = "#1f78b4",
-    "Uncorrected Area" = "#e31a1c"
-  )
-)
-
-shared_y <- scale_y_continuous(
-  labels = function(x) format(signif(x, 2), scientific = TRUE)
-)
-
-shared_theme <- theme_bw(base_size = 12) +
-  theme(
-    strip.text = element_text(size = 10 #face = "bold"
-                              ),
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "bottom",
-    plot.title = element_text(
-      hjust = 0.5,
-      face = "bold",
-      size = 12,
-      margin = margin(b = 10)
-    )
-  )
-
-# ============================================================
-# 4. Positive plot
-# ============================================================
-
-WC_plot_pos <- ggplot(
-  WC_plot_df_pos,
-  aes(
-    x = Treatment,
-    y = Area,
-    color = Signal,
-    group = Signal
-  )
-) +
-  geom_point(size = 2, alpha = 0.85) +
-  geom_line(alpha = 0.7) +
-  shared_colors +
-  shared_y +
-  facet_wrap(
-    ~ Feature_RT,
-    scales = "free_y",
-    ncol = 3
-  ) +
-  labs(
-    title = "Positive ionization mode",
-    x = NULL,
-    y = "Area",
-    color = NULL
-  ) +
-  shared_theme
-
-# ============================================================
-# 5. Negative plot
-# ============================================================
-
-WC_plot_neg <- ggplot(
-  WC_plot_df_neg,
-  aes(
-    x = Treatment,
-    y = Area,
-    color = Signal,
-    group = Signal
-  )
-) +
-  geom_point(size = 2, alpha = 0.85) +
-  geom_line(alpha = 0.7) +
-  shared_colors +
-  shared_y +
-  facet_wrap(
-    ~ Feature_RT,
-    scales = "free_y",
-    ncol = 3
-  ) +
-  labs(
-    title = "Negative ionization mode",
-    x = NULL,
-    y = "Area",
-    color = NULL
-  ) +
-  shared_theme
-
-# ============================================================
-# 6. Combine positive above negative
-# ============================================================
-
-# ============================================================
-# 7. Combine positive above negative with proportional heights
-# ============================================================
-
-ncol_facets <- 3
-
-n_rows_pos <- ceiling(n_distinct(WC_plot_df_pos$Feature_RT) / ncol_facets)
-n_rows_neg <- ceiling(n_distinct(WC_plot_df_neg$Feature_RT) / ncol_facets)
-
-WC_plot <- (
-  WC_plot_pos /
-    WC_plot_neg
-) +
-  plot_layout(
-    heights = c(n_rows_pos, n_rows_neg),
-    guides = "collect"
-  ) &
-  theme(
-    legend.position = "bottom"
-  )
-
-WC_plot
-# ============================================================
-# 8. Save PNG
-# ============================================================
-
-ggsave(
-  filename = file.path(
-    output_dir,
-    "Figure_SI-14.png"
-  ),
-  plot = WC_plot,
-  width = 22,
-  height = 30,
-  units = "cm",
-  dpi = 1000
-)
-
-# ============================================================
-# 9. Save TIFF
-# ============================================================
-
-ggsave(
-  filename = file.path(
-    output_dir,
-    "Figure_SI-14.tiff"
-  ),
-  plot = WC_plot,
-  width = 22,
-  height = 30,
-  units = "cm",
-  dpi = 1000,
-  device = "tiff",
-  compression = "lzw"
-)
-```
-
-## Figure SI-15 & SI-16. All compounds, positive and negative modes
-
-### Figure SI-15. All compounds, positive mode
-
-```{r figure-si-15-si-16-figure-si-15-all-compounds-positive-mode}
-# ===============================
-# Define x-axis limits
-# ===============================
-x_limits <- c(0, 14)
+print(combined_eic_plot)
 
 # ===============================
-# Filter data - positive mode
+# Filter long_data
 # ===============================
-filtered_data_pos2 <- long_data %>%
+
+filtered_data_2 <- long_data %>%
   filter(
     Sequence %in% 1:45,
-    between(Times, x_limits[1], x_limits[2]),
     Compound %in% c(
-      "Indole-d6",
-      "Leucine-d10",
-      # "GlutamicAcid-d5",
-      "Carnitine-d9",
       "Glucose-13C6",
+      "Leucine-d10",
       "Tryptophan-d5",
-      "StearicAcid-d35"
-      # "CholicAcid-d4"
+      "Indole-d6",
+      "StearicAcid-d35",
+      "Carnitine-d9"
     ),
-    Replicate %in% 1:8,
-    !(Sample == "NIST" & Replicate >= 4),
-    !(Replicate %in% c(1, 2, 3, 4, 6) & Sample == "Solvent")
-  ) %>%
-  mutate(
-    Wash = factor(Wash, levels = c("22x", "08x", "04x", "NoWash", "PPT")),
-    Wash = recode(
-      Wash,
-      "22x"    = "PLR 22x wash",
-      "08x"    = "PLR 8x wash",
-      "04x"    = "PLR 4x wash",
-      "NoWash" = "PLR unwashed",
-      "PPT"    = "PPT"
-    )
-  )
-
-# ===============================
-# Summary table for plotting
-# ===============================
-summary_table_F_pos <- filtered_data_pos2 %>%
-  group_by(Scan, Compound, Wash) %>%
-  summarise(
-    avg_time = mean(Times, na.rm = TRUE),
-    Process  = mean(Average[Sample == "Process"], na.rm = TRUE),
-    NIST     = mean(Average[Sample == "NIST"], na.rm = TRUE),
-    Solvent  = mean(Average[Sample == "Solvent"], na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    Matrix_Effect = ((NIST / Solvent) * 100) - 100,
-    Comparison = "NIST / Solvent"
-  ) %>%
-  group_by(Comparison, avg_time, Scan, Compound, Wash) %>%
-  summarise(
-    Matrix_Effect = mean(Matrix_Effect, na.rm = TRUE),
-    .groups = "drop"
+    Wash %in% c("22x", "08x", "04x", "NoWash", "PPT"),
+    !(Replicate %in% c("1", "2", "3", "4", "6") & Sample == "Solvent"),
+    Replicate %in% 1:8
   ) %>%
   mutate(
     Wash = factor(
       Wash,
-      levels = c(
-        "PPT",
-        "PLR unwashed",
-        "PLR 22x wash",
-        "PLR 8x wash",
-        "PLR 4x wash"
-      )
-    ),
-    Compound_plot = recode(
-      Compound,
+      levels = c("22x", "08x", "04x", "NoWash", "PPT")
+    )
+  )
+
+# ===============================
+# Calculate Matrix Effect Factor
+# ===============================
+
+matrix_effect_data <- filtered_data_2 %>%
+  filter(Sample %in% c("NIST", "Solvent")) %>%
+  group_by(Sequence, Wash, Scan, Compound, Sample, Replicate) %>%
+  summarise(
+    Average_value = mean(Intensities, na.rm = TRUE),
+    Times = dplyr::first(Times),
+    .groups = "drop"
+  ) %>%
+  pivot_wider(
+    names_from = Sample,
+    values_from = Average_value
+  ) %>%
+  group_by(Wash, Scan, Compound) %>%
+  summarise(
+    Solvent_mean = mean(Solvent, na.rm = TRUE),
+    NIST_value = NIST[!is.na(NIST)],
+    Times = dplyr::first(Times),
+    Replicate = Replicate[!is.na(NIST)],
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Matrix_Effect = ((NIST_value / Solvent_mean) * 100) - 100,
+    Matrix_Effect_Factor = 1 + (Matrix_Effect / 100)
+  )
+
+# ===============================
+# Plot Matrix Effect Factor over time
+# ===============================
+
+matrix_effect_factor_time_plot <- ggplot(
+  matrix_effect_data,
+  aes(x = Times, y = Matrix_Effect_Factor, color = Wash)
+) +
+  geom_line() +
+  geom_vline(
+    xintercept = 4.84,
+    linetype = "dotted",
+    color = "black"
+  ) +
+  geom_hline(
+    yintercept = 1.00,
+    linetype = "dashed",
+    color = "black"
+  ) +
+  facet_grid(
+    Wash + Replicate ~ Compound
+  ) +
+  labs(
+    title = "Matrix Effect Factor (MEF) over Time for NIST Replicates",
+    x = "Time (minutes)",
+    y = "Matrix Effect Factor",
+    color = "Wash Condition"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "top"
+  )
+
+print(matrix_effect_factor_time_plot)
+```
+
+### Plots
+
+```{r figure-si-16-plots}
+# -----------------------------
+# REBUILD the isoleucine long-format df IN THIS SECTION.
+# (These steps were missing, so the plot was using Figure 6's stale
+#  combined_eic_df_filtered_long instead of the isoleucine data.)
+# -----------------------------
+
+# Step 1: per Wash/Replicate, take the scan at the intensity maximum (for alignment)
+combined_eic_df_filtered2 <- combined_eic_df_filtered %>%
+  group_by(Wash, Replicate) %>%
+  filter(rt == rt[which.max(intensity)]) %>%
+  ungroup()
+
+# Step 2: find the closest MEF Time/Scan to each peak rt -> per-run scan offset
+combined_eic_df_filtered2 <- combined_eic_df_filtered2 %>%
+  mutate(
+    closest_time = purrr::map_dbl(rt,           ~ matrix_effect_data$Times[which.min(abs(matrix_effect_data$Times - .))]),
+    closest_scan = purrr::map_dbl(closest_time, ~ matrix_effect_data$Scan [which.min(abs(matrix_effect_data$Times - .))]),
+    scan_diff    = scan - closest_scan
+  )
+
+# Step 3: apply the scan shift to the full EIC
+combined_eic_df_with_shift <- combined_eic_df_filtered %>%
+  left_join(
+    combined_eic_df_filtered2 %>% select(Wash, Replicate, scan_diff),
+    by = c("Wash", "Replicate")
+  ) %>%
+  mutate(adjusted_scan = scan - scan_diff)
+
+# Step 4: join each PCI's MEF (by aligned scan) -> corrected intensity + Compound labels
+combined_eic_df_with_shift <- combined_eic_df_with_shift %>%
+  left_join(
+    matrix_effect_data %>% select(Wash, Replicate, Scan, Matrix_Effect_Factor, Compound),
+    by = c("Wash", "Replicate", "adjusted_scan" = "Scan")
+  ) %>%
+  mutate(
+    corrected_intensity = intensity / Matrix_Effect_Factor,
+    Wash = factor(Wash, levels = c("22x", "08x", "04x", "NoWash", "PPT")),
+    Wash = recode(Wash,
+      "22x" = "PLR 22x wash", "08x" = "PLR 8x wash", "04x" = "PLR 4x wash",
+      "NoWash" = "PLR unwashed", "PPT" = "PPT"),
+    Compound_plot = recode(Compound,
       "Average"         = "Average",
       "Tryptophan-d5"   = "Tryptophan-d[5]",
       "Leucine-d10"     = "Leucine-d[10]",
       "Glucose-13C6"    = "Glucose-{}^{13}*C[6]",
       "StearicAcid-d35" = "Stearic~acid-d[35]",
       "Indole-d6"       = "Indole-d[6]",
-      "Carnitine-d9"    = "Carnitine-d[9]"
+      "Carnitine-d9"    = "Carnitine-d[9]")
+  )
+
+compound_plot_levels <- c(
+  "Tryptophan-d[5]", "Leucine-d[10]", "Glucose-{}^{13}*C[6]",
+  "Stearic~acid-d[35]", "Indole-d[6]", "Carnitine-d[9]"
+)
+
+# Step 5: long format (uncorrected + corrected), averaged per rt
+combined_eic_df_filtered_long <- combined_eic_df_with_shift %>%
+  pivot_longer(
+    cols = c(intensity, corrected_intensity),
+    names_to = "Intensity_Type",
+    values_to = "Intensity_Value"
+  ) %>%
+  group_by(Wash, rt, Matrix_Effect_Factor, Sample, Replicate,
+           Intensity_Type, Sequence, Compound, Compound_plot) %>%
+  summarise(Average_Intensity = mean(Intensity_Value, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Compound_plot = factor(Compound_plot, levels = compound_plot_levels))
+
+
+# -----------------------------
+# Build the subset that is actually plotted, THEN scale the MEF to it
+# (scaling must use the plotted window, not the whole dataset)
+# -----------------------------
+plot_leu <- combined_eic_df_filtered_long %>%
+  filter(between(rt, 2.6, 3), Wash == "PLR 4x wash") %>%
+  mutate(
+    Intensity_Type = recode(
+      Intensity_Type,
+      intensity           = "Uncorrected Tryptophan Intensity",
+      corrected_intensity = "Corrected Tryptophan Intensity"
+    ),
+    Intensity_Type = factor(
+      Intensity_Type,
+      levels = c("Uncorrected Tryptophan Intensity",
+                 "Corrected Tryptophan Intensity",
+                 "Matrix Factor")
     )
   )
 
-# ===============================
-# Plot
-# ===============================
-SI.All_pos <- ggplot(summary_table_F_pos, aes(x = avg_time)) +
+# axis limit must cover BOTH traces; MEF is scaled to the UNCORRECTED peak
+int_max_all    <- max(plot_leu$Average_Intensity, na.rm = TRUE)
+int_max_uncorr <- max(plot_leu$Average_Intensity[
+  plot_leu$Intensity_Type == "Uncorrected Tryptophan Intensity"], na.rm = TRUE)
+mef_max        <- max(plot_leu$Matrix_Effect_Factor, na.rm = TRUE)
 
+# MEF * scaling_factor -> peaks at the uncorrected-intensity peak (comparable heights)
+scaling_factor <- int_max_uncorr #/ mef_max
+
+# -----------------------------
+# Step 7: Plot
+# -----------------------------
+All_plot_EIC_long_leu <- plot_leu %>%
+  ggplot() +
+
+  # Intensity traces
   geom_line(
-    aes(y = Matrix_Effect, color = Compound),
-    size = 0.8
+    aes(x = rt, y = Average_Intensity, color = Intensity_Type, group = Intensity_Type),
+    linewidth = 0.5
   ) +
 
-  geom_hline(
-    yintercept = 0,
-    linetype = "solid",
-    color = "grey60",
-    size = 0.5
+  # MEF trace on the secondary scale
+  geom_line(
+    aes(x = rt, y = Matrix_Effect_Factor * scaling_factor, color = "Matrix Factor"),
+    linewidth = 0.5
   ) +
 
-  geom_hline(
-    yintercept = c(-20, 20),
-    linetype = "dashed",
-    color = "black",
-    size = 0.6
-  ) +
+  # MEF = 1 reference (no matrix effect)
+  geom_hline(yintercept = 1.0 * scaling_factor, color = "red", linetype = "dashed") +
 
   facet_grid(
-    Wash ~ Compound_plot,
-    labeller = labeller(
-      Compound_plot = label_parsed,
-      Wash = label_value
+    Replicate ~ Compound_plot,
+    labeller = labeller(Compound_plot = label_parsed)
+  ) +
+
+  scale_y_continuous(
+    name    = "Intensity",
+    limits  = c(0, int_max_all * 1.05),
+    labels  = scales::scientific,
+    sec.axis = sec_axis(
+      transform = ~ . / scaling_factor,   # ggplot2 4.0: 'transform', not 'trans'
+      name      = "Matrix Factor"
     )
   ) +
 
-  labs(
-    x = "Retention Time (mins)",
-    y = "Matrix Effect (%)"
+  scale_color_manual(
+    values = c(
+      "Uncorrected Tryptophan Intensity" = "blue",
+      "Corrected Tryptophan Intensity"   = "green",
+      "Matrix Factor"                    = "red"
+    )
   ) +
 
-  theme_minimal(base_size = 14) +
+  labs(x = "Retention Time (min)", y = "Intensity", title = "A") +
+
+  theme_minimal(base_size = 12) +
   theme(
-    legend.position = "none",
-    strip.text = element_text(size = 9),
-    strip.text.y = element_text(angle = 0),
-    panel.grid = element_blank(),
-    axis.line = element_line(color = "black"),
-    axis.ticks = element_line(color = "black"),
-    plot.margin = margin(5, 10, 5, 5, unit = "mm")
+    axis.text.y       = element_text(size = 12),
+    axis.text.x       = element_text(angle = 45, hjust = 1),
+    legend.title      = element_blank(),
+    legend.position   = "bottom",
+    strip.text.y      = element_text(angle = 0),
+    strip.text.x      = element_text(size = 9),
+    panel.grid.major  = element_blank(),
+    panel.grid.minor  = element_blank(),
+    axis.line         = element_line(color = "black"),
+    axis.ticks        = element_line(color = "black"),
+    plot.title.position = "plot",
+    plot.title        = element_text(hjust = 0, vjust = 1, face = "bold", size = 12)
   )
 
-# ===============================
-# Display
-# ===============================
-print(SI.All_pos)
-
-# ===============================
-# Save PNG
-# ===============================
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-15.png"),
-  plot = SI.All_pos,
-  width = 20,
-  height = 20,
-  units = "cm",
-  dpi = 1000
-)
-
-# ===============================
-# Save TIFF
-# ===============================
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-15.tiff"),
-  plot = SI.All_pos,
-  width = 22,
-  height = 20,
-  units = "cm",
-  dpi = 1000,
-  device = "tiff",
-  compression = "lzw"
-)
+print(All_plot_EIC_long_leu)
 ```
 
-### Figure SI-16. All compounds, negative mode
+### Barplot
 
-```{r figure-si-15-si-16-figure-si-16-all-compounds-negative-mode}
+```{r figure-si-16-barplot}
 # ===============================
-# Define x-axis limits
+# Step 1: Trapezoidal integration
 # ===============================
-x_limits <- c(0, 14)
-
-# ===============================
-# Filter data
-# ===============================
-filtered_data_neg2 <- long_data2 %>%
-  filter( Sequence %in% 1:45,
-    between(Times, x_limits[1], x_limits[2]),
-    Compound %in% c(
-      #"Carnitine-d9",
-      "Leucine-d10",
-      "GlutamicAcid-d5",
-      "Tryptophan-d5",
-      "StearicAcid-d35",
-      "CholicAcid-d4",
-      "Glucose-13C6"
-      #"Indole-d6"
-    ),
-    #Wash %in% c("PPT", "NoWash", "22x"),
-    Replicate %in% 1:8,
-   !(Sample == "NIST" & Replicate >= 4),
-    !(Replicate %in% c("1", "2", "3", "4", "6") & Sample == "Solvent")) %>%
-  mutate(Wash = factor(Wash, levels = c("22x","08x", "04x", "NoWash", "PPT")),
- Wash = recode(
-      Wash,
-      "22x"    = "PLR 22x wash",
-      "08x"    = "PLR 8x wash",
-      "04x"    = "PLR 4x wash",
-      "NoWash" = "PLR unwashed",
-      "PPT"    = "PPT"))
-
-# ===============================
-# Summary table for plotting
-# ===============================
-summary_table_F <- filtered_data_neg2 %>%
-  group_by(Scan, Compound, Wash) %>%
+integrated_data <- combined_eic_df_filtered_long %>% 
+  filter(
+    !is.na(rt),
+    !is.na(Average_Intensity),
+    !is.na(Compound)
+  ) %>%
+  group_by(Wash, Sample, Replicate, Intensity_Type, Sequence, Compound) %>%
   summarise(
-    avg_time = mean(Times, na.rm = TRUE),
-    Process  = mean(Average[Sample == "Process"],  na.rm = TRUE),
-    NIST     = mean(Average[Sample == "NIST"],     na.rm = TRUE),
-    Solvent  = mean(Average[Sample == "Solvent"],  na.rm = TRUE),
+    integration_area = trapz(rt, Average_Intensity),
     .groups = "drop"
+  )
+
+# ===============================
+# Step 2: Wide format
+# ===============================
+integrated_data_wide <- integrated_data %>%
+  pivot_wider(
+    names_from  = Intensity_Type,
+    values_from = integration_area
+  )
+
+# ===============================
+# Step 3: Back to long
+# ===============================
+integrated_data_long_wide <- integrated_data_wide %>%
+  pivot_longer(
+    cols = -c(Wash, Sample, Replicate, Sequence, Compound),
+    names_to = "Intensity_Type",
+    values_to = "integration_area"
+  )
+
+# ===============================
+# Step 4: Filter + relabel
+# ===============================
+integrated_data_long_wide_filtered <- integrated_data_long_wide %>%
+  group_by(Wash, Replicate) %>%
+  filter(!(Intensity_Type == "intensity" & duplicated(Intensity_Type))) %>%
+  ungroup() %>%
+  mutate(
+    Compound = if_else(
+      Intensity_Type == "intensity",
+      "Uncorrected",
+      Compound
+    )
+  ) %>%
+  filter(
+    Intensity_Type != "intensity" | Compound == "Uncorrected"
   ) %>%
   mutate(
-    Matrix_Effect = ((NIST / Solvent) * 100) - 100,
-    Comparison = "NIST / Solvent"
-  ) %>%
-  group_by(Comparison, avg_time, Scan, Compound, Wash) %>%
-  summarise(
-    Matrix_Effect = mean(Matrix_Effect, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    Wash = recode(
-      Wash,
-      "22x"    = "PLR 22x wash",
-      "08x"    = "PLR 8x wash",
-      "04x"    = "PLR 4x wash",
-      "NoWash" = "PLR unwashed",
-      "PPT"    = "PPT"),
-    Wash = factor(Wash, levels = c("PPT", "PLR unwashed","PLR 22x wash","PLR 8x wash","PLR 4x wash")),
-    Compound_plot = recode(
+    Compound = factor(
       Compound,
+      levels = c(
+        "Uncorrected",
+        "Tryptophan-d5",
+        "Leucine-d10",
+        "Glucose-13C6",
+        "StearicAcid-d35",
+        "Indole-d6",
+        "Carnitine-d9"
+      )
+    )
+  )
+
+# ===============================
+# Step 5: Error statistics
+# ===============================
+error_data <- integrated_data_long_wide_filtered %>%
+  group_by(Wash, Compound) %>%
+  summarise(
+    Mean = mean(integration_area, na.rm = TRUE),
+    SD   = sd(integration_area, na.rm = TRUE),
+    SE   = SD / sqrt(n()),
+    RSD_percent = (SD / Mean) * 100,
+    .groups = "drop"
+  )
+
+# ===============================
+# Step 6: Compound labels
+# ===============================
+error_data <- error_data %>%
+  mutate(
+    Compound_plot = recode(
+      as.character(Compound),
+      "Uncorrected"     = "Uncorrected",
+      "Tryptophan-d5"   = "Tryptophan-d[5]",
+      "Leucine-d10"     = "Leucine-d[10]",
       "Glucose-13C6"    = "Glucose-{}^{13}*C[6]",
-  "Tryptophan-d5"   = "Tryptophan-d[5]",
-  "StearicAcid-d35" = "'Stearic acid'-d[35]",
-  "CholicAcid-d4"   = "'Cholic acid'-d[4]",
-  "GlutamicAcid-d5" = "'Glutamic acid'-d[5]"
-)
+      "StearicAcid-d35" = "Stearic~acid-d[35]",
+      "Indole-d6"       = "Indole-d[6]",
+      "Carnitine-d9"    = "Carnitine-d[9]"
+    ),
+    Compound_plot = factor(
+      Compound_plot,
+      levels = c(
+        "Uncorrected",
+        "Tryptophan-d[5]",
+        "Leucine-d[10]",
+        "Glucose-{}^{13}*C[6]",
+        "Stearic~acid-d[35]",
+        "Indole-d[6]",
+        "Carnitine-d[9]"
+      )
     )
+  )
+
+compound_rsd_all_washes <- integrated_data_long_wide_filtered %>%
+  group_by(Compound) %>%
+  summarise(
+    Mean_all = mean(integration_area, na.rm = TRUE),
+    SD_all = sd(integration_area, na.rm = TRUE),
+    RSD_all_washes = (SD_all / Mean_all) * 100,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Compound_plot = recode(
+      as.character(Compound),
+      "Uncorrected"     = "Uncorrected",
+      "Tryptophan-d5"   = "Tryptophan-d[5]",
+      "Leucine-d10"     = "Leucine-d[10]",
+      "Glucose-13C6"    = "Glucose-{}^{13}*C[6]",
+      "StearicAcid-d35" = "Stearic~acid-d[35]",
+      "Indole-d6"       = "Indole-d[6]",
+      "Carnitine-d9"    = "Carnitine-d[9]"
+    ),
+    Compound_plot = factor(
+      Compound_plot,
+      levels = levels(error_data$Compound_plot)
+    )
+  )
 
 # ===============================
-# Annotation helper data (ONE row per Wash)
+# Step 7: Bar plot
 # ===============================
-annot_PPT <- summary_table_F %>%
-  filter(Wash == "PPT") %>%
-  distinct(Wash)
-
-annot_PLR <- summary_table_F %>%
-  filter(Wash == "PLR unwashed") %>%
-  distinct(Wash)
-
-max_intensity <- max(summary_table_F$Matrix_Effect, na.rm = TRUE)
-
-asterisk_df <- data.frame(
-  avg_time = 4.5,
-  Matrix_Effect = 20,
-  label = "*",
-  Wash = "PPT",                  # CHANGE if needed
-  Compound_plot = "Leucine[d10]"  # MUST match facet value exactly
-)
-
-# ===============================
-# Plot
-# ===============================
-SI.All_Neg <- ggplot(summary_table_F, aes(x = avg_time)) +
-
-  # Matrix effect lines
-  geom_line(
-    aes(y = Matrix_Effect, color = Compound),
-    size = 0.8
-  ) +
-
-  # Zero reference
-   geom_hline(
-    yintercept = 0,
-    linetype = "solid",
-    color = "grey60",
-    size = 0.5
-  ) +
-  geom_hline(
-    yintercept = c(-20, 20),
-    linetype = "dashed",
+barplot_compounds_with_error_leu <- ggplot(
+  error_data,
+  aes(x = Wash, y = Mean, fill = Wash)
+) +
+  geom_bar(
+    stat = "identity",
     color = "black",
-    size = 0.6
+    linewidth = 0.5
   ) +
-  
-
-#  -------------------------------
-# GLOBAL ASTERISK (ALL PANELS)
-#  -------------------------------
-  # annotate(
-  #   "text",
-  #   x = 4.7,
-  #   y = 10,
-  #   label = "*",
-  #   size = 4,
-  #   fontface = "bold"
-  # ) +
-
-  # Facets
-  facet_grid(
-    Wash ~ Compound_plot,
-    labeller = labeller(
-      Compound_plot = label_parsed,
-      Wash = label_value
-    )
+  geom_errorbar(
+    aes(ymin = Mean - SE, ymax = Mean + SE),
+    width = 0.25,
+    color = "black"
   ) +
-
+  geom_text(
+    aes(
+      y = Mean + SE + 0.05,
+      label = paste0(signif(RSD_percent, 2), "%")
+    ),
+    size = 3,
+    vjust = -0.5
+  ) +
+  geom_text(
+  data = compound_rsd_all_washes,
+  aes(
+    x = 3,
+    y = Inf,
+    label = paste0("RSD = ", round(RSD_all_washes, 1), "%")
+  ),
+  inherit.aes = FALSE,
+  vjust = 1.3,
+  #fontface = "bold",
+  size = 2.5
+) +
+  scale_x_discrete(labels = NULL) +
+  scale_y_continuous(
+    labels = scales::scientific,
+    expand = expansion(mult = c(0, 0.3))
+  ) +
+  facet_wrap(
+    ~Compound_plot,
+    ncol = 7,
+    drop = TRUE,
+    labeller = labeller(Compound_plot = label_parsed)
+  ) +
   labs(
-    x = "Retention Time (mins)",
-    y = "Matrix Effect (%)"
+    title = "B",
+    x = NULL,
+    y = "Integrated Area",
+    fill = NULL
   ) +
-
-  theme_minimal(base_size = 14) +
+  theme_minimal(base_size = 12) +
   theme(
-    legend.position = "none",
-    strip.text = element_text(size = 10),
-    strip.text.y = element_text(angle = 0),
+    legend.position = "bottom",
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    strip.text.x = element_text(size = 9),
     panel.grid = element_blank(),
     axis.line = element_line(color = "black"),
-    axis.ticks = element_line(color = "black"),
-    plot.margin = margin(5, 10, 5, 5, unit = "mm")
+    axis.ticks.y = element_line(color = "black"),
+    plot.title.position = "plot",
+    plot.title = element_text(
+      hjust = 0,
+      face = "bold",
+      size = 12
+    )
   )
 
 # ===============================
 # Display
 # ===============================
-print(SI.All_Neg)
+print(barplot_compounds_with_error_leu)
+
+### Combine Plots:
+
+combined_mef_plot_leu <- All_plot_EIC_long_leu / barplot_compounds_with_error_leu 
+ 
+print(combined_mef_plot_leu)
+
+
+### SI-XX
 
 # Save PNG
 ggsave(
   filename = file.path(output_dir, "Figure_SI-16.png"),
-  plot = SI.All_Neg,
-  width = 20,
+  plot = combined_mef_plot_leu,
+  width = 30,
   height = 20,
   units = "cm",
   dpi = 1000
@@ -9096,8 +9702,8 @@ ggsave(
 # Save TIFF
 ggsave(
   filename = file.path(output_dir, "Figure_SI-16.tiff"),
-  plot = SI.All_Neg,
-  width = 22,
+  plot = combined_mef_plot_leu,
+  width = 30,
   height = 20,
   units = "cm",
   dpi = 1000,
@@ -9107,390 +9713,280 @@ ggsave(
 
 ```
 
-## Figure SI-17. Resolution figure
+## Figure SI-17. Training and validation on Tryptophan
 
-```{r figure-si-17-setup}
-#---------------------------------------------
-# 1. Define mzML files + labels + starting scans
-#---------------------------------------------
-# Resolution mzML files live in a subfolder. Use a dedicated path variable so
-# the global mzml_folder (used by every other figure) is NOT overwritten.
-resolution_folder <- file.path(mzml_folder, "Resolution")
+```{r figure-si-17-analysis}
+# ============================================================
+# Per-feature RSD across correction methods
+# Training versus validation
+# Bars ordered best -> worst within each correction
+# Run after the Figure 7 training/validation chunk
+# Requires: split_df
+# ============================================================
 
-file_info <- data.frame(
-  file = c(
-    file.path(resolution_folder, "240925-Exp-PAN-1-010-NoWash-NIST.mzML"),
-    file.path(resolution_folder, "240925-Exp-PAN-1-016-NoWash-NIST-R120.mzML"),
-    file.path(resolution_folder, "240925-Exp-PAN-1-028-NoWash-NIST-R240.mzML")
-  ),
-  label = c("60K", "120K", "240K"),
-  start_scan = c(333, 243, 157),
-  stringsAsFactors = FALSE
-)
-
-# Ensure correct plotting order
-file_info$label <- factor(file_info$label, levels = c("60K", "120K", "240K"))
-
-#---------------------------------------------
-# 2. Function to extract selected scans
-#---------------------------------------------
-process_file <- function(file_path, start_scan, label) {
-  
-  raw_data <- xcmsRaw(file_path)
-  mz_range <- c(204.11, 204.13)
-  
-  # ⭐ Keep only 4 scans (remove 5th)
-  scan_offsets <- c(0, 2, 4, 6)
-  scans <- start_scan + scan_offsets
-  
-  spectra_list <- lapply(seq_along(scans), function(i) {
-    
-    scan_index <- scans[i]
-    
-    scan_start <- raw_data@scanindex[scan_index] + 1
-    scan_end <- ifelse(scan_index + 1 <= length(raw_data@scanindex), 
-                      raw_data@scanindex[scan_index + 1], 
-                      length(raw_data@env$mz))
-    
-    mz_values <- raw_data@env$mz[scan_start:scan_end]
-    intensity_values <- raw_data@env$intensity[scan_start:scan_end]
-    
-    df <- data.frame(mz = mz_values, intensity = intensity_values) %>%
-      dplyr::filter(mz >= mz_range[1] & mz <= mz_range[2])
-    
-    # Handle empty spectra
-    if (nrow(df) == 0) {
-      df <- data.frame(
-        mz = c(mz_range[1], mz_range[2]),
-        intensity = c(0, 0)
-      )
-    }
-    
-    df %>%
-      dplyr::mutate(
-        sample = label,
-        scan = factor(paste0("Scan ", i), levels = paste0("Scan ", 1:4))
-      )
-  })
-  
-  dplyr::bind_rows(spectra_list)
+# Helper for ordering bars separately within each facet
+reorder_within <- function(x, by, within, fun = mean, sep = "___", ...) {
+  stats::reorder(
+    paste(x, within, sep = sep),
+    by,
+    FUN = fun
+  )
 }
 
-#---------------------------------------------
-# 3. Process all files
-#---------------------------------------------
-combined_spectra <- purrr::pmap_dfr(
-  list(file_info$file, file_info$start_scan, file_info$label),
-  process_file
+# Feature to plot
+feature <- "X00085"
+
+# Nice correction-method labels
+pretty_correction <- c(
+  uncorrected      = "Uncorrected",
+  corrected_mean   = "Best mean",
+  corrected_median = "Best median",
+  corrected_min    = "Best minimum"
 )
 
-#---------------------------------------------
-# 4. Plot
-#---------------------------------------------
-target_masses <- c(204.1173, 204.1230)
+# ============================================================
+# Calculate RSD for each PCI, correction type, and dataset
+# ============================================================
 
-spectrum_glucose <- ggplot(combined_spectra, aes(x = mz, y = intensity)) +
-  
-  # ⭐ Color by resolution (sample)
-  geom_line(aes(color = sample, group = interaction(sample, scan)), alpha = 0.7) +
-  
-  geom_vline(xintercept = target_masses, linetype = "dashed", color = "black") +
-  
-  facet_grid(sample ~ scan, scales = "free_x") +
-  
-  coord_cartesian(ylim = c(0, 2.5e6)) +
-  
-  scale_y_continuous(labels = scales::scientific) +
-  
-  scale_x_continuous(
-    name = "Mass to Charge Ratio",
-    breaks = target_masses,
-    labels = format(target_masses, digits = 7)
-  ) +
-  
-  # ⭐ Define clear colors for each resolution
-  scale_color_manual(
-    values = c(
-      "60K"  = "#1f78b4",   # blue
-      "120K" = "#33a02c",   # green
-      "240K" = "#e31a1c"    # red
-    )
-  ) +
-  
-  labs(
-    y = "Intensity",
-    #title = "B"
-  ) +
-  
-  theme_minimal(base_size = 12) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "none",   # keep off since faceted
-    panel.grid = element_blank(),
-    axis.line = element_line(color = "black"),
-    axis.ticks = element_line(color = "black"),
-    strip.text = element_text(size = 10, face = "bold"),
-    plot.title.position = "plot",
-    plot.title = element_text(hjust = 0, face = "bold", size = 14)
-  )
-
-print(spectrum_glucose)
-
-# Save
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-17.png"),
-  plot = spectrum_glucose,
-  width = 20, height = 20, units = "cm", dpi = 1000
-)
-
-ggsave(
-  filename = file.path(output_dir, "Figure_SI-17.tiff"),
-  plot = spectrum_glucose,
-  width = 20, height = 20, units = "cm",
-  dpi = 1000, device = "tiff", compression = "lzw"
-)
-
-
-```
-
-### Combining dilution and ME plots (figure 7 and 8)
-
-```{r figure-si-17-combining-dilution-and-me-plots-figure-7-and-8}
-# ---- Combining dilution and ME plots (figure 7 and 8) ----
-dilution_file <- "Skyline-PCI-InfusionTest-Exp7-Gradient and Dilution.tsv"  
-dilution_data <- read_tsv(here("Data", dilution_file))
-
-replacements <- c(
-  "Leucine d10" = "Leucine-d10" ,
-   "Glutamic acid-d5"= "GlutamicAcid-d5",
-   "DL-Tryptophan-d5" = "Tryptophan-d5",
-   "Stearic-d35 (18:0)" = "StearicAcid-d35",
-   "Cholic acid-d4" = "CholicAcid-d4")
-
-data5 <- dilution_data %>%
-  dplyr::rename(
-    Chromatograms = FileName,
-    Compound = PeptideModifiedSequence,
-    Adduct = PrecursorCharge,
-    Charge = ProductCharge
+rsd_feature <- split_df %>%
+  group_by(
+    Feature,
+    PCI,
+    CorrectionType,
+    Set
   ) %>%
-  select(-IsotopeLabelType, -TotalArea, -FragmentIon) %>%
-  separate(
-    Chromatograms,
-    into = c(
-      "Date",
-      "Exp",
-      "PAN",
-      "Batch",
-      "Sequence",
-      "Wash",
-      "Sample",
-      "Dilution"),
-    sep = "-",
-    remove = FALSE
-  ) %>%
-  mutate(
-    Sample = str_remove(Sample, "\\.raw"),
-    Dilution = str_remove(Dilution,"\\.raw"),
-    Wash = str_remove(Wash,"\\.raw"),
-    Compound = replace(Compound, Compound == "#N/A", "TIC"),
-    Compound = recode(Compound, !!!replacements),  # Apply replacements
-    Sequence = as.numeric(Sequence),
-    Dilution = as.factor(Dilution)
-  ) %>%
-  select(-Batch,-Exp) %>%
-  arrange(Date) %>%
-  filter(#Sample %in% c("Process", "NIST"),
-         Adduct != "[M35H2-H]",
-        Adduct != "[M5H2+H]",
-        Compound != "Isoleucine-13C6",
-        Compound != "Arginine-13C6") %>%
-  group_by(Wash, Sample, Compound, Charge) %>%
-  mutate(Replicate = row_number()) %>%
- ungroup() %>%
-  select(1:5, Replicate, everything()) %>%
-  mutate(Sample = ifelse(Wash == "NoFilter" & Sample == "Blank", "Reference", Sample)) %>%
-   filter(Compound != "TIC") 
-
-# Get unique washes to replicate Reference for each wash
-unique_washes <- unique(data5$Wash)
-print(unique_washes)
-
-# Add Reference sample for all washes except "NoFilter"
-data5 <- data5 %>%
-  bind_rows(
-    data5 %>%
-      filter(Sample == "Reference") %>%
-      select(-Wash) %>%  # Remove the existing Wash column
-      crossing(Wash = unique(data5$Wash[data5$Wash != "NoFilter"]))  # Add each wash except "NoFilter"
-  ) %>%
-filter(Wash != "NoFilter") %>%
-filter(Wash %in% c("NoFilter", "22x", "08x", "04x","NoWash","PPT")) %>%
-   mutate(
-    Sample = case_when(
-      Sample == "Reference" ~ "Solvent",
-      Sample == "Blank" ~ "Process",
-      TRUE ~ Sample))  
-
-unique_washes <- unique(data5$Wash) %>% print()
-unique_sample <- unique(data5$Sample) %>% print()
-
-
-
-data_intensity <- data5 %>%
-  select(Chromatograms, Compound, Intensities) %>%
-  separate_wider_delim(Intensities,
-                       delim = ";",
-                      names_sep = "",
-                      too_few = "align_start") %>%
-  mutate(across(3:ncol(.), ~ as.numeric(gsub(",", ".", .))))
-
-  
-data_time <- data5 %>%
-  select(Chromatograms,Compound, Times) %>%
-  separate_wider_delim(Times,
-                       delim = ";",
-                       names_sep = "",
-                       too_few = "align_start") %>%
-  mutate(across(3:ncol(.), ~ as.numeric(gsub(",", ".", .))))
-
-
-combined_data <- data5 %>%
-  select(-Intensities,-Times) %>%
-  right_join(data_time, by = c("Chromatograms","Compound")) %>%
-  right_join(data_intensity, by = c("Chromatograms","Compound"))
-
-
-long_data_dilu <- combined_data %>%
-  filter(Date == "241009",
-         Compound %in% c(
-           #"Indole-d6",
-           "Leucine-d10",
-           #"GlutamicAcid-d5",
-           "Carnitine-d9",
-           #"Tryptophan-d5",
-           #"StearicAcid-d35",
-           #"CholicAcid-d4",
-           "Glucose-13C6"
-         ), 
-       Wash != "08x",) %>%
-    pivot_longer(
-    cols = c(starts_with("Times"), starts_with("Intensities")),
-    names_to = c(".value", "Scan"),
-    names_pattern = "(Times|Intensities)(\\d+)") %>%
-    mutate(Scan = as.numeric(Scan)) %>%
-    mutate(Average = rollmean(Intensities, k = 5, fill = NA, align = "left")) %>%
-  distinct()
-
-# Define axis and zoom settings
-x_limits <- c(0, 14)
-zoom_limits <- c(0, 14)
-vline_positions <- c(0.79, 2.2)
-
-# Filter data
-filtered_data_dilu <- long_data_dilu %>%
-  filter(
-    between(Times, x_limits[1], x_limits[2]),
-    Compound == "Glucose-13C6",
-    Wash == "NoWash",
-    Sample != "Process"
-  ) %>%
-  mutate(Wash = factor(Wash, levels = c("22x", "08x", "NoWash", "PPT")))
-
-# Summarise per scan/sample
-summary_nowash_plot<- filtered_data_dilu %>%
-  filter(Sample %in% c("NIST", "Solvent"), Date == "241009") %>%
-  group_by(Compound, Scan, Wash, Sample, Dilution) %>%
   summarise(
-    avg_time = mean(Times, na.rm = TRUE),
-    NIST_n = sum(!is.na(Average[Sample == "NIST"])),
-    NIST_mean = mean(Average[Sample == "NIST"], na.rm = TRUE),
-    NIST_se = sd(Average[Sample == "NIST"], na.rm = TRUE) / sqrt(NIST_n),
-    Solvent_n = sum(!is.na(Average[Sample == "Solvent"])),
-    Solvent_mean = mean(Average[Sample == "Solvent"], na.rm = TRUE),
-    Solvent_se = sd(Average[Sample == "Solvent"], na.rm = TRUE) / sqrt(Solvent_n),
+    rsd = 100 *
+      sd(CorrectedArea, na.rm = TRUE) /
+      mean(CorrectedArea, na.rm = TRUE),
     .groups = "drop"
   ) %>%
-  group_by(Compound, Scan, Wash) %>%
-  mutate(
-    Solvent_mean = dplyr::first(Solvent_mean[Sample == "Solvent" & !is.na(Solvent_mean)]),
-    Solvent_se = dplyr::first(Solvent_se[Sample == "Solvent" & !is.na(Solvent_se)]),
-    Solvent_n = dplyr::first(Solvent_n[Sample == "Solvent" & !is.na(Solvent_n)])
+
+  # Keep only the selected feature
+  filter(
+    Feature == feature
   ) %>%
-  ungroup() %>%
-  filter(Sample != "Solvent") %>%
-  mutate(
-    ME_NS_mean = ((NIST_mean / Solvent_mean) * 100) - 100,
-    ME_NS_se = abs((NIST_mean / Solvent_mean) * 100) *
-      sqrt((NIST_se / NIST_mean)^2 + (Solvent_se / Solvent_mean)^2),
-    df = pmin(NIST_n, Solvent_n) - 1,
-    t_val = qt(0.975, df = df),
-    ME_NS_lower = ME_NS_mean - t_val * ME_NS_se,
-    ME_NS_upper = ME_NS_mean + t_val * ME_NS_se,
-    NIST_lower = NIST_mean - t_val * NIST_se,
-    NIST_upper = NIST_mean + t_val * NIST_se,
-    Solvent_lower = Solvent_mean - t_val * Solvent_se,
-    Solvent_upper = Solvent_mean + t_val * Solvent_se
-  )  %>%
-  mutate(
-    # Standard error of the difference
-    se_diff = sqrt(NIST_se^2 + Solvent_se^2),
 
-    # t-statistic for Welch's t-test
-    t_stat = (NIST_mean - Solvent_mean) / se_diff,
-
-    # Welch-Satterthwaite degrees of freedom
-    df_welch = (NIST_se^2 + Solvent_se^2)^2 /
-      ((NIST_se^4 / (NIST_n - 1)) + (Solvent_se^4 / (Solvent_n - 1))),
-
-    # two-sided p-value
-    p_value = 2 * pt(-abs(t_stat), df = df_welch)
+  # The uncorrected values are repeated for every PCI.
+  # Keep only one uncorrected reference row.
+  filter(
+    CorrectionType != "uncorrected" |
+      (
+        CorrectionType == "uncorrected" &
+          PCI == "Tryptophan-d5"
+      )
   ) %>%
-mutate(
-    Dilution = recode(as.character(Dilution),
-      "100" = "100%",
-      "050" = "50%",
-      "025" = "25%",
-      "010" = "10%"
+
+  mutate(
+    CorrectionType = factor(
+      CorrectionType,
+      levels = names(pretty_correction),
+      labels = pretty_correction
     ),
-    Dilution = factor(Dilution, levels = c("100%", "50%", "25%", "10%"))
+
+    Set = factor(
+      Set,
+      levels = c(
+        "Training",
+        "Validation"
+      )
+    ),
+
+    # Assign a separate fill-group name to the uncorrected bar
+    fill_group = if_else(
+      CorrectionType == "Uncorrected",
+      "Uncorrected",
+      as.character(PCI)
+    )
   )
 
+# ============================================================
+# Plot
+# ============================================================
 
-# Plot B: Zoomed matrix effect + significance
-plot_nowash_dilution <- summary_nowash_plot %>%
-  filter(between(avg_time, zoom_limits[1], zoom_limits[2])) %>%
-  ggplot(aes(x = avg_time, y = ME_NS_mean, color = Dilution, fill = Dilution)) +
-  geom_ribbon(aes(ymin = ME_NS_lower, ymax = ME_NS_upper), alpha = 0.2, color = NA) +
-  geom_line(size = 0.8) +
-  #geom_segment(data = sig_regions_ME, aes(x = xmin, xend = xmax, y = y, yend = y), color = "black", size = 0.8) +
-  #geom_text(data = sig_regions_ME, aes(x = (xmin + xmax)/2, y = label_y, label = "*"), size = 6, fontface = "bold", color = "black") +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
-  geom_vline(xintercept = vline_positions, linetype = "dotted", color = "black") +
-  facet_grid(~Dilution ~Wash + Compound) +
-  #coord_cartesian(ylim = c(global_min_y, global_max_y)) +
-    labs( 
-      title = bquote(atop("PLR unwashed plasma", "Glucose -"^{13}*"C"[6])),
-   x = "Retention Time (min)",
-  y = "Matrix Effect (%)") +
-  theme_minimal(base_size = 14) +
- theme(
-  legend.position = "none",
-   strip.text = element_blank(),        
-  #strip.text.y = element_blank(),
-  #strip.text.x = element_blank(),
-  panel.grid.major = element_blank(),
-  panel.grid.minor = element_blank(),
-  axis.line = element_line(color = "black"),      # ← keep axis line
-  axis.ticks = element_line(color = "black"),      # ← keep ticks
-   plot.title = element_text(hjust = 0.5, size = 14) # center title
+plot_rsd_feature <- ggplot(
+  rsd_feature,
+  aes(
+    x = reorder_within(
+      PCI,
+      rsd,
+      CorrectionType
+    ),
+    y = rsd,
+    fill = fill_group
+  )
+) +
+
+  geom_col(
+    width = 0.8,
+    color = "black",
+    linewidth = 0.5
+  ) +
+
+  geom_text(
+    aes(
+      label = sprintf("%.1f%%", rsd)
+    ),
+    vjust = -0.4,
+    size = 3.5,
+    fontface = "bold"
+  ) +
+
+  # Rows = training and validation
+  # Columns = correction methods
+  facet_grid(
+    Set ~ CorrectionType,
+    scales = "free_x",
+    space = "free_x"
+  ) +
+
+  # Remove the artificial facet-ordering suffix
+  scale_x_discrete(
+    labels = function(x) {
+
+      lab <- sub(
+        "___.*$",
+        "",
+        x
+      )
+
+      # Do not show a PCI label beneath the uncorrected bar
+      lab[
+        grepl(
+          "___Uncorrected$",
+          x
+        )
+      ] <- ""
+
+      lab
+    }
+  ) +
+
+  # Use the Dark2 RColorBrewer palette
+  scale_fill_brewer(
+    palette = "Dark2"
+  ) +
+
+  # Add space above the bars for RSD labels
+  scale_y_continuous(
+    expand = expansion(
+      mult = c(0, 0.15)
+    )
+  ) +
+
+  labs(
+    x = "PCI",
+    y = "RSD (%)",
+    fill = NULL
+  ) +
+
+  theme_minimal(
+    base_size = 14
+  ) +
+
+  theme(
+    plot.title = element_text(
+      face = "bold",
+      size = 14,
+      hjust = 0.5
+    ),
+
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1,
+      size = 12
+    ),
+
+    axis.text.y = element_text(
+      size = 12
+    ),
+
+    axis.title.x = element_text(
+      face = "bold",
+      size = 13
+    ),
+
+    axis.title.y = element_text(
+      face = "bold",
+      size = 13
+    ),
+
+    strip.text = element_text(
+      face = "bold",
+      size = 12
+    ),
+
+    strip.text.y = element_text(
+      angle = -90
+    ),
+
+    strip.background = element_blank(),
+
+    # Allows the full "Uncorrected" facet label to be visible
+    strip.clip = "off",
+
+    panel.grid.major.x = element_blank(),
+
+    panel.grid.minor = element_blank(),
+
+    panel.grid.major.y = element_line(
+      color = "grey85",
+      linewidth = 0.3
+    ),
+
+    panel.spacing = unit(
+      0.6,
+      "lines"
+    ),
+
+    # Hide the fill legend
+    legend.position = "none",
+
+    plot.margin = margin(
+      10,
+      12,
+      10,
+      10
+    )
+  )
+
+# ============================================================
+# Display
+# ============================================================
+
+print(plot_rsd_feature)
+
+# ============================================================
+# Save Figure SI-17
+# ============================================================
+
+# Save PNG
+ggsave(
+  filename = file.path(
+    output_dir,
+    "Figure_SI-17.png"
+  ),
+  plot = plot_rsd_feature,
+  width = 25,
+  height = 20,
+  units = "cm",
+  dpi = 1000
 )
-  
 
-# Show final plot
-print(plot_nowash_dilution)
-
-
+# Save TIFF
+ggsave(
+  filename = file.path(
+    output_dir,
+    "Figure_SI-17.tiff"
+  ),
+  plot = plot_rsd_feature,
+  width = 25,
+  height = 20,
+  units = "cm",
+  dpi = 1000,
+  device = "tiff",
+  compression = "lzw"
+)
 ```
 
 ## Figure SI-18. RSD change versus retention time
@@ -9892,721 +10388,603 @@ ggsave(
 )
 ```
 
-## Figure SI-19. Isoleucine spike
+## Figure SI-19. Improved and worsened features
 
 ```{r figure-si-19-setup}
-# ===============================
-# Settings
-# ===============================
+# ============================================================
+# Arrow plots
+# Mean correction from plot_df and plot_df_neg
+# Faceted by polarity and correction effect
+# Positive first, then negative
+# ============================================================
 
-ppm <- 3
-target_mz <- 138.1220  # IsoL-C13 [M+H]+
+RSD_CUTOFF <- 5
 
-eic_cache_file <- here("Data", "eic_list2.rds")
+# ============================================================
+# 1️⃣ Combine POS and NEG data
+# ============================================================
 
-# Set to TRUE only when you want to force re-extraction
-force_reextract <- FALSE
+plot_df_combined <- bind_rows(
+  plot_df %>%
+    mutate(Polarity = "Positive"),
 
-# ===============================
-# Function to extract EIC
-# ===============================
-
-extract_eic <- function(file_name, target_mz, ppm, polarity_label = "positive") {
-  
-  file_path <- file.path(mzml_folder, file_name)
-  
-  raw_data <- xcmsRaw(file_path)
-  
-  mz_tol <- (ppm / 1e6) * target_mz
-  mz_range <- c(target_mz - mz_tol, target_mz + mz_tol)
-  
-  positive_scans <- which(raw_data@polarity == polarity_label)
-  
-  eic <- rawEIC(raw_data, mzrange = mz_range)
-  
-  eic_df <- data.frame(
-    rt = raw_data@scantime[positive_scans] / 60,
-    intensity = eic$intensity[positive_scans],
-    scan = seq_along(positive_scans),
-    target = paste0("m/z ", round(target_mz, 4)),
-    file_name = rep(file_name, length(positive_scans))
-  ) %>%
-    mutate(
-      average_intensity = zoo::rollmean(
-        intensity,
-        k = 5,
-        fill = NA,
-        align = "left"
-      )
-    )
-  
-  return(eic_df)
-}
-
-# ===============================
-# List of mzML files
-# ===============================
-
-files <- c(
-  "241008-Exp-PAN-1-035-NoWash-NIST.mzML",
-  "241008-Exp-PAN-1-036-NoWash-NIST.mzML",
-  "241008-Exp-PAN-1-037-NoWash-NIST.mzML",
-  "241008-Exp-PAN-1-014-22x-NIST.mzML",
-  "241008-Exp-PAN-1-015-22x-NIST.mzML",
-  "241008-Exp-PAN-1-016-22x-NIST.mzML",
-  "241008-Exp-PAN-1-028-04x-NIST.mzML",
-  "241008-Exp-PAN-1-029-04x-NIST.mzML",
-  "241008-Exp-PAN-1-030-04x-NIST.mzML",
-  "241008-Exp-PAN-1-021-08x-NIST.mzML",
-  "241008-Exp-PAN-1-022-08x-NIST.mzML",
-  "241008-Exp-PAN-1-023-08x-NIST.mzML",
-  "241008-Exp-PAN-1-042-PPT-NIST.mzML",
-  "241008-Exp-PAN-1-043-PPT-NIST.mzML",
-  "241008-Exp-PAN-1-044-PPT-NIST.mzML"
+  plot_df_neg %>%
+    mutate(Polarity = "Negative")
 )
 
-# ===============================
-# Extract EICs only if not already saved
-# ===============================
+result_long_combined <- bind_rows(
+  result_long %>%
+    mutate(Polarity = "Positive"),
 
-dir.create(
-  dirname(eic_cache_file),
-  recursive = TRUE,
-  showWarnings = FALSE
+  result_long_neg %>%
+    mutate(Polarity = "Negative")
 )
 
-if (file.exists(eic_cache_file) && !force_reextract) {
-  
-  message("Loading saved EIC data from: ", eic_cache_file)
-  eic_list2 <- readRDS(eic_cache_file)
-  
-} else {
-  
-  message("No saved EIC data found, or force_reextract = TRUE. Extracting EICs...")
-  
-  eic_list2 <- lapply(files, function(file_name) {
-    extract_eic(file_name, target_mz, ppm)
-  })
-  
-  saveRDS(
-    eic_list2,
-    file = eic_cache_file
-  )
-  
-  message("Saved EIC data to: ", eic_cache_file)
-}
+# ============================================================
+# 2️⃣ Prepare data for arrow plot
+# ============================================================
 
-# ===============================
-# Combine all EICs
-# ===============================
-
-combined_eic_df <- bind_rows(eic_list2)
-
-# ===============================
-# Filter and parse file names
-# ===============================
-
-combined_eic_df_filtered <- combined_eic_df %>%
-  filter(rt >= 2 & rt <= 4) %>%
-  separate(
-    file_name,
-    into = c(
-      "Date",
-      "Exp",
-      "PAN",
-      "Batch",
-      "Sequence",
-      "Wash",
-      "Sample"
-    ),
-    sep = "-",
-    remove = FALSE
+rsd_rt_arrow_combined <- plot_df_combined %>%
+  filter(Type == "Best mean/uncorrected") %>%
+  select(Polarity, Feature, RSD_uncorrected, RSD_val) %>%
+  distinct() %>%
+  dplyr::rename(
+    Uncorrected = RSD_uncorrected,
+    Corrected   = RSD_val
   ) %>%
   mutate(
-    Sample = str_remove(Sample, "\\.mzML"),
-    Sequence = as.numeric(Sequence),
-    Wash = factor(
-      Wash,
-      levels = c("22x", "08x", "04x", "NoWash", "PPT")
+    Delta_RSD = Corrected - Uncorrected,
+    Change_Class = case_when(
+      Delta_RSD <= -RSD_CUTOFF ~ "Improved",
+      Delta_RSD >=  RSD_CUTOFF ~ "Worsened",
+      TRUE                     ~ "Less affected"
     )
   ) %>%
-  select(-Exp, -Batch) %>%
-  arrange(Date) %>%
-  group_by(Wash, Sample) %>%
-  mutate(
-    Replicate = dense_rank(Sequence)
+  left_join(
+    result_long_combined %>%
+      group_by(Polarity, Feature) %>%
+      summarise(
+        RT_min = mean(mean_rt, na.rm = TRUE),
+        .groups = "drop"
+      ),
+    by = c("Polarity", "Feature")
   ) %>%
-  ungroup()
-
-print(combined_eic_df_filtered)
-
-# ===============================
-# Plot extracted EICs
-# ===============================
-
-combined_eic_plot <- combined_eic_df_filtered %>%
-  ggplot(aes(x = rt, y = intensity, color = Wash)) +
-  geom_line(linewidth = 1) +
-  facet_wrap(~Wash + Replicate, ncol = 3) +
-  labs(
-    title = paste("Overlayed EICs (", ppm, "ppm, Positive Mode)"),
-    x = "Retention Time (min)",
-    y = "Intensity",
-    color = "Wash"
-  ) +
-  theme_minimal()
-
-print(combined_eic_plot)
-
-# ===============================
-# Filter long_data
-# ===============================
-
-filtered_data_2 <- long_data %>%
-  filter(
-    Sequence %in% 1:45,
-    Compound %in% c(
-      "Glucose-13C6",
-      "Leucine-d10",
-      "Tryptophan-d5",
-      "Indole-d6",
-      "StearicAcid-d35",
-      "Carnitine-d9"
+  filter(Change_Class %in% c("Improved", "Worsened")) %>%
+  mutate(
+    Polarity = factor(
+      Polarity,
+      levels = c("Positive", "Negative")
     ),
-    Wash %in% c("22x", "08x", "04x", "NoWash", "PPT"),
-    !(Replicate %in% c("1", "2", "3", "4", "6") & Sample == "Solvent"),
-    Replicate %in% 1:8
-  ) %>%
-  mutate(
-    Wash = factor(
-      Wash,
-      levels = c("22x", "08x", "04x", "NoWash", "PPT")
+    Change_Class = factor(
+      Change_Class,
+      levels = c("Improved", "Worsened")
     )
   )
 
-# ===============================
-# Calculate Matrix Effect Factor
-# ===============================
+# ============================================================
+# 3️⃣ Calculate group means for dashed lines
+# ============================================================
 
-matrix_effect_data <- filtered_data_2 %>%
-  filter(Sample %in% c("NIST", "Solvent")) %>%
-  group_by(Sequence, Wash, Scan, Compound, Sample, Replicate) %>%
+mean_lines <- rsd_rt_arrow_combined %>%
+  group_by(Polarity, Change_Class) %>%
   summarise(
-    Average_value = mean(Intensities, na.rm = TRUE),
-    Times = dplyr::first(Times),
-    .groups = "drop"
-  ) %>%
-  pivot_wider(
-    names_from = Sample,
-    values_from = Average_value
-  ) %>%
-  group_by(Wash, Scan, Compound) %>%
-  summarise(
-    Solvent_mean = mean(Solvent, na.rm = TRUE),
-    NIST_value = NIST[!is.na(NIST)],
-    Times = dplyr::first(Times),
-    Replicate = Replicate[!is.na(NIST)],
+    Mean_Uncorrected = mean(Uncorrected, na.rm = TRUE),
+    Mean_Corrected   = mean(Corrected, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
-    Matrix_Effect = ((NIST_value / Solvent_mean) * 100) - 100,
-    Matrix_Effect_Factor = 1 + (Matrix_Effect / 100)
+    Polarity = factor(
+      Polarity,
+      levels = c("Positive", "Negative")
+    ),
+    Change_Class = factor(
+      Change_Class,
+      levels = c("Improved", "Worsened")
+    )
   )
 
-# ===============================
-# Plot Matrix Effect Factor over time
-# ===============================
+# ============================================================
+# 4️⃣ RT axis limits
+# ============================================================
 
-matrix_effect_factor_time_plot <- ggplot(
-  matrix_effect_data,
-  aes(x = Times, y = Matrix_Effect_Factor, color = Wash)
-) +
-  geom_line() +
-  geom_vline(
-    xintercept = 4.84,
-    linetype = "dotted",
-    color = "black"
-  ) +
-  geom_hline(
-    yintercept = 1.00,
-    linetype = "dashed",
-    color = "black"
-  ) +
-  facet_grid(
-    Wash + Replicate ~ Compound
-  ) +
-  labs(
-    title = "Matrix Effect Factor (MEF) over Time for NIST Replicates",
-    x = "Time (minutes)",
-    y = "Matrix Effect Factor",
-    color = "Wash Condition"
-  ) +
-  theme_minimal() +
+min_rt <- floor(min(rsd_rt_arrow_combined$RT_min, na.rm = TRUE))
+max_rt <- 14
+
+rt_x_scale <- scale_x_continuous(
+  limits = c(min_rt, max_rt),
+  breaks = seq(min_rt, max_rt, by = 2),
+  expand = expansion(mult = c(0.02, 0.05))
+)
+
+# ============================================================
+# 5️⃣ Shared theme
+# ============================================================
+
+aligned_theme <- theme_pubr(base_size = 14) +
   theme(
-    legend.position = "top"
+    axis.title.x = element_text(size = 13),
+    axis.title.y = element_text(size = 13),
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black"),
+    panel.border = element_blank(),
+    strip.text = element_text(face = "bold", size = 13),
+    plot.title = element_text(face = "bold", size = 16)
   )
 
-print(matrix_effect_factor_time_plot)
+# ============================================================
+# 6️⃣ Faceted arrow plot
+# ============================================================
+
+plot_all <- ggplot(rsd_rt_arrow_combined) +
+
+  geom_segment(
+    aes(
+      x = RT_min,
+      xend = RT_min,
+      y = Uncorrected,
+      yend = Corrected
+    ),
+    color = "grey40",
+    linewidth = 1,
+    alpha = 0.9,
+    arrow = arrow(length = unit(0.3, "cm"), type = "closed")
+  ) +
+
+  geom_point(
+    aes(
+      x = RT_min,
+      y = Uncorrected,
+      color = "Uncorrected"
+    ),
+    size = 2
+  ) +
+
+  geom_point(
+    aes(
+      x = RT_min,
+      y = Corrected,
+      color = "Corrected"
+    ),
+    size = 2
+  ) +
+
+  geom_hline(
+    data = mean_lines,
+    aes(yintercept = Mean_Uncorrected),
+    color = "#e31a1c",
+    linetype = "dashed",
+    linewidth = 0.8
+  ) +
+
+  geom_hline(
+    data = mean_lines,
+    aes(yintercept = Mean_Corrected),
+    color = "#1f78b4",
+    linetype = "dashed",
+    linewidth = 0.8
+  ) +
+
+  geom_text(
+    data = mean_lines,
+    aes(
+      x = Inf,
+      y = Mean_Uncorrected,
+      label = paste0("Mean Uncorrected = ", round(Mean_Uncorrected, 1), "%")
+    ),
+    hjust = 1,
+    vjust = -0.3,
+    color = "#e31a1c",
+    fontface = "bold",
+    size = 3.5
+  ) +
+
+  geom_text(
+    data = mean_lines,
+    aes(
+      x = Inf,
+      y = Mean_Corrected,
+      label = paste0("Mean Corrected = ", round(Mean_Corrected, 1), "%")
+    ),
+    hjust = 1,
+    vjust = -0.3,
+    color = "#1f78b4",
+    fontface = "bold",
+    size = 3.5
+  ) +
+
+  scale_color_manual(
+    name = NULL,
+    values = c(
+      "Uncorrected" = "#e31a1c",
+      "Corrected"   = "#1f78b4"
+    )
+  ) +
+
+  facet_grid(Change_Class ~ Polarity) +
+
+  rt_x_scale +
+
+  labs(
+    x = "Retention Time (min)",
+    y = "RSD (%)"
+  ) +
+
+  aligned_theme +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank()
+  )
+
+plot_all
+
+# ============================================================
+# 7️⃣ Save plot
+# ============================================================
+
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-19.png"),
+  plot = plot_all,
+  width = 24,
+  height = 18,
+  units = "cm",
+  dpi = 1000
+)
+
+ggsave(
+  filename = file.path(output_dir, "Figure_SI-19.tiff"),
+  plot = plot_all,
+  width = 24,
+  height = 18,
+  units = "cm",
+  dpi = 1000,
+  device = "tiff",
+  compression = "lzw"
+)
 ```
 
-### Plots
+## Figure SI-20. Individual worsened features
 
-```{r figure-si-19-plots}
-# Step 1: Filter for the closest `rt` to 4.84 within each group (Wash and Replicate)
-combined_eic_df_filtered2 <- combined_eic_df_filtered %>%
-  group_by(Wash, Replicate) %>%  
- #filter(rt == rt[which.min(abs(rt - 4.85))]) %>%
-  filter(rt == rt[which.max(intensity)]) %>%
-  ungroup()  # Remove grouping after filtering
+```{r figure-si-20-setup}
+# ============================================================
+# Plot corrected vs uncorrected peak areas
+# WORSENED features only — Best mean correction
+# A = Positive mode, B = Negative mode
+# Same plot size for A and B
+# ============================================================
 
-# Step 2: Find the closest `rt`, `Times`, and `Scan` in `matrix_effect_data` for each `rt`
-combined_eic_df_filtered2 <- combined_eic_df_filtered2 %>%
-  mutate(
-    #closest_rt = purrr::map_dbl(rt, ~matrix_effect_data$Times[which.min(abs(matrix_effect_data$Times - .))]),
-    closest_time = purrr::map_dbl(rt, ~matrix_effect_data$Times[which.min(abs(matrix_effect_data$Times - .))]),
-    closest_scan = purrr::map_dbl(closest_time, ~matrix_effect_data$Scan[which.min(abs(matrix_effect_data$Times - .))]),
-    scan_diff = scan - closest_scan  # Calculate the difference of the scans
+# ============================================================
+# 1. Positive mode
+# ============================================================
+
+df_worsened_mean_pos <- rsd_delta_rt %>%
+  filter(Category == "Worsened") %>%
+  select(Feature, RT_min) %>%
+  distinct()
+
+chosen_mean_pos <- plot_df %>%
+  filter(Type == "Best mean/uncorrected") %>%
+  select(Feature, Chosen, Chosen_PCI) %>%
+  distinct() %>%
+  filter(Chosen != "uncorrected") %>%
+  dplyr::rename(PCI = Chosen_PCI)
+
+val_best_mean_pos <- val_df %>%
+  inner_join(
+    chosen_mean_pos,
+    by = c("Feature", "PCI")
   ) %>%
-  ungroup()  # Remove grouping after mutation
+  filter(CorrectionType == Chosen)
 
-# Step 3: Apply `scan_diff` to the original data and adjust the scan
-combined_eic_df_with_shift <- combined_eic_df_filtered %>%
+uncorrected_clean_pos <- uncorrected_df %>%
+  filter(
+    Set == "Validation",
+    CorrectionType == "uncorrected"
+  ) %>%
+  dplyr::rename(UncorrectedArea = CorrectedArea) %>%
+  select(Treatment, Replicate, Feature, UncorrectedArea)
+
+val_best_worsened_pos <- val_best_mean_pos %>%
   left_join(
-    combined_eic_df_filtered2 %>% select(Wash, Replicate, scan_diff),
-    by = c("Wash", "Replicate")
+    uncorrected_clean_pos,
+    by = c("Treatment", "Replicate", "Feature")
   ) %>%
-  mutate(
-    adjusted_scan = scan - scan_diff  # Apply the scan shift to get the adjusted scan
+  filter(Feature %in% df_worsened_mean_pos$Feature) %>%
+  left_join(
+    df_worsened_mean_pos,
+    by = "Feature"
   )
 
-# Step 4: Join `Matrix_Effect_Factor` (MEF) based on `adjusted_scan`
-# -----------------------------
-combined_eic_df_with_shift <- combined_eic_df_with_shift %>%
-  left_join(
-    matrix_effect_data %>%
-      select(Wash, Replicate, Scan, Matrix_Effect_Factor, Compound),
-    by = c("Wash", "Replicate", "adjusted_scan" = "Scan")
+facet_levels_pos <- val_best_worsened_pos %>%
+  distinct(Feature, RT_min, PCI, CorrectionType) %>%
+  mutate(
+    Correction_clean = str_remove(CorrectionType, "^corrected_")
+  ) %>%
+  arrange(RT_min, Feature) %>%
+  mutate(
+    Feature_RT = paste0(
+      Feature, " (", round(RT_min, 2), " min)\n",
+      "PCI: ", PCI, "\n",
+      "Correction: ", Correction_clean
+    )
+  ) %>%
+  pull(Feature_RT)
+
+WC_plot_df_pos <- val_best_worsened_pos %>%
+  pivot_longer(
+    cols = c(CorrectedArea, UncorrectedArea),
+    names_to = "Signal",
+    values_to = "Area"
   ) %>%
   mutate(
-    corrected_intensity = intensity / Matrix_Effect_Factor,
-    
-    # Wash factor + labels
-    Wash = factor(Wash, levels = c("22x", "08x", "04x", "NoWash", "PPT")),
-    Wash = recode(
-      Wash,
+    Signal = recode(
+      Signal,
+      "CorrectedArea"   = "Corrected Area",
+      "UncorrectedArea" = "Uncorrected Area"
+    ),
+
+    Correction_clean = str_remove(CorrectionType, "^corrected_"),
+
+    Feature_RT = paste0(
+      Feature, " (", round(RT_min, 2), " min)\n",
+      "PCI: ", PCI, "\n",
+      "Correction: ", Correction_clean
+    ),
+
+    Feature_RT = factor(Feature_RT, levels = facet_levels_pos),
+
+    Treatment = factor(
+      Treatment,
+      levels = c("22x", "08x", "04x", "NoWash", "PPT")
+    ),
+
+    Treatment = recode(
+      Treatment,
       "22x"    = "PLR 22x wash",
       "08x"    = "PLR 8x wash",
       "04x"    = "PLR 4x wash",
       "NoWash" = "PLR unwashed",
       "PPT"    = "PPT"
-    ),
-    
-    # Compound labels for plotting (parsed)
-    Compound_plot = recode(
-      Compound,
-      "Average"        = "Average",
-      "Tryptophan-d5"  = "Tryptophan-d[5]",
-      "Leucine-d10"    = "Leucine-d[10]",
-      "Glucose-13C6"   = "Glucose-{}^{13}*C[6]"
-    ,
-    "StearicAcid-d35" = "Stearic~acid-d[35]",
-    "Indole-d6" = "Indole-d[6]",
-    "Carnitine-d9" = "Carnitine-d[9]")
-  )
-
-# -----------------------------
-# Define explicit facet order
-# -----------------------------
-compound_plot_levels <- c(
-  "Tryptophan-d[5]",
-  "Leucine-d[10]",
-  "Glucose-{}^{13}*C[6]", "Stearic~acid-d[35]",
-"Indole-d[6]",
-"Carnitine-d[9]")
-
-# -----------------------------
-# Step 5: Pivot to long format
-# -----------------------------
-combined_eic_df_filtered_long <- combined_eic_df_with_shift %>%
-  pivot_longer(
-    cols = c(intensity, corrected_intensity),
-    names_to = "Intensity_Type",
-    values_to = "Intensity_Value"
-  ) %>%
-  group_by(
-    Wash, rt, Matrix_Effect_Factor, Sample, Replicate,
-    Intensity_Type, Sequence, Compound, Compound_plot
-  ) %>%
-  summarise(
-    Average_Intensity = mean(Intensity_Value, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    Compound_plot = factor(
-      Compound_plot,
-      levels = compound_plot_levels
     )
   )
 
-# -----------------------------
-# Scaling factor for MEF
-# -----------------------------
-scaling_factor <- 0.25*
-  max(combined_eic_df_filtered_long$Average_Intensity, na.rm = TRUE) /
-  max(combined_eic_df_filtered_long$Matrix_Effect_Factor, na.rm = TRUE)
+# ============================================================
+# 2. Negative mode
+# ============================================================
 
-# -----------------------------
-# Step 7: Plot
-# -----------------------------
-All_plot_EIC_long_leu <- combined_eic_df_filtered_long %>%
+df_worsened_mean_neg <- rsd_delta_rt_neg %>%
+  filter(Category == "Worsened") %>%
+  select(Feature, RT_min) %>%
+  distinct()
+
+chosen_mean_neg <- plot_df_neg %>%
+  filter(Type == "Best mean/uncorrected") %>%
+  select(Feature, Chosen, Chosen_PCI) %>%
+  distinct() %>%
+  filter(Chosen != "uncorrected") %>%
+  dplyr::rename(PCI = Chosen_PCI)
+
+val_best_mean_neg <- val_df_neg %>%
+  inner_join(
+    chosen_mean_neg,
+    by = c("Feature", "PCI")
+  ) %>%
+  filter(CorrectionType == Chosen)
+
+uncorrected_clean_neg <- uncorrected_df_neg %>%
   filter(
-    between(rt, 2.6, 3), 
-    Wash == "PLR 4x wash"
+    Set == "Validation",
+    CorrectionType == "uncorrected"
+  ) %>%
+  dplyr::rename(UncorrectedArea = CorrectedArea) %>%
+  select(Treatment, Replicate, Feature, UncorrectedArea)
+
+val_best_worsened_neg <- val_best_mean_neg %>%
+  left_join(
+    uncorrected_clean_neg,
+    by = c("Treatment", "Replicate", "Feature")
+  ) %>%
+  filter(Feature %in% df_worsened_mean_neg$Feature) %>%
+  left_join(
+    df_worsened_mean_neg,
+    by = "Feature"
+  )
+
+facet_levels_neg <- val_best_worsened_neg %>%
+  distinct(Feature, RT_min, PCI, CorrectionType) %>%
+  mutate(
+    Correction_clean = str_remove(CorrectionType, "^corrected_")
+  ) %>%
+  arrange(RT_min, Feature) %>%
+  mutate(
+    Feature_RT = paste0(
+      Feature, " (", round(RT_min, 2), " min)\n",
+      "PCI: ", PCI, "\n",
+      "Correction: ", Correction_clean
+    )
+  ) %>%
+  pull(Feature_RT)
+
+WC_plot_df_neg <- val_best_worsened_neg %>%
+  pivot_longer(
+    cols = c(CorrectedArea, UncorrectedArea),
+    names_to = "Signal",
+    values_to = "Area"
   ) %>%
   mutate(
-    Intensity_Type = recode(
-      Intensity_Type,
-      intensity = "Uncorrected Tryptophan Intensity",
-      corrected_intensity = "Corrected Tryptophan Intensity"
+    Signal = recode(
+      Signal,
+      "CorrectedArea"   = "Corrected Area",
+      "UncorrectedArea" = "Uncorrected Area"
     ),
-    Intensity_Type = factor(
-      Intensity_Type,
-      levels = c(
-        "Uncorrected Tryptophan Intensity",
-        "Corrected Tryptophan Intensity",
-        "Matrix Factor"
-      )
+
+    Correction_clean = str_remove(CorrectionType, "^corrected_"),
+
+    Feature_RT = paste0(
+      Feature, " (", round(RT_min, 2), " min)\n",
+      "PCI: ", PCI, "\n",
+      "Correction: ", Correction_clean
+    ),
+
+    Feature_RT = factor(Feature_RT, levels = facet_levels_neg),
+
+    Treatment = factor(
+      Treatment,
+      levels = c("22x", "08x", "04x", "NoWash", "PPT")
+    ),
+
+    Treatment = recode(
+      Treatment,
+      "22x"    = "PLR 22x wash",
+      "08x"    = "PLR 8x wash",
+      "04x"    = "PLR 4x wash",
+      "NoWash" = "PLR unwashed",
+      "PPT"    = "PPT"
     )
-  ) %>%
-  ggplot() +
-  
-  # Intensity traces
-  geom_line(
-    aes(
-      x = rt,
-      y = Average_Intensity,
-      color = Intensity_Type,
-      group = Intensity_Type
-    ),
-    linewidth = 0.5
-  ) +
-  
-  # MEF trace (secondary axis)
-  geom_line(
-    aes(
-      x = rt,
-      y = Matrix_Effect_Factor * scaling_factor,
-      color = "Matrix Factor"
-    ),
-    linewidth = 0.5
-  ) +
-  
-  geom_hline(
-    yintercept = 1.0 * scaling_factor,
-    color = "red",
-    linetype = "dashed"
-  ) +
-  
-  facet_grid(
-    Replicate ~ Compound_plot,
-    labeller = labeller(Compound_plot = label_parsed)
-  ) +
-  
-scale_y_continuous(
-  name = "Intensity",
-  limits = c(0, 2.1e7),
-  breaks = seq(0, 2e7, by = 5e6),
-  labels = scales::scientific,
-  sec.axis = sec_axis(
-    trans = ~ . / scaling_factor,
-    name = "Matrix Factor"
   )
-) +
-  
-  scale_color_manual(
-    values = c(
-      "Uncorrected Tryptophan Intensity" = "blue",
-      "Corrected Tryptophan Intensity"   = "green",
-      "Matrix Factor"                    = "red"
-    )
-  ) +
-  
-  labs(
-    x = "Retention Time (min)",
-    y = "Intensity"
-  ) +
-  
-  
-  theme_minimal(base_size = 12) +
+
+# ============================================================
+# 3. Shared plot settings
+# ============================================================
+
+shared_colors <- scale_color_manual(
+  values = c(
+    "Corrected Area"   = "#1f78b4",
+    "Uncorrected Area" = "#e31a1c"
+  )
+)
+
+shared_y <- scale_y_continuous(
+  labels = function(x) format(signif(x, 2), scientific = TRUE)
+)
+
+shared_theme <- theme_bw(base_size = 12) +
   theme(
-    # axis.title.y = element_text(size = 14),
-    axis.text.y  = element_text(size = 12),
+    strip.text = element_text(size = 10 #face = "bold"
+                              ),
     axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.title = element_blank(),
     legend.position = "bottom",
-    strip.text.y = element_text(angle = 0),
-    strip.text.x = element_text(size = 9),
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank(),
-    plot.title = element_blank(),
-    axis.line = element_line(color = "black"),
-    axis.ticks = element_line(color = "black")
-    ) +
-  labs(title = "A") +
-  theme(
-    plot.title.position = "plot",
     plot.title = element_text(
-      hjust = 0,          # left-align
-      vjust = 1,
+      hjust = 0.5,
       face = "bold",
-      size = 12
+      size = 12,
+      margin = margin(b = 10)
     )
   )
 
-# -----------------------------
-# Print
-# -----------------------------
-print(All_plot_EIC_long_leu)
-```
+# ============================================================
+# 4. Positive plot
+# ============================================================
 
-### Barplot
-
-```{r figure-si-19-barplot}
-# ===============================
-# Step 1: Trapezoidal integration
-# ===============================
-integrated_data <- combined_eic_df_filtered_long %>% 
-  filter(
-    !is.na(rt),
-    !is.na(Average_Intensity),
-    !is.na(Compound)
-  ) %>%
-  group_by(Wash, Sample, Replicate, Intensity_Type, Sequence, Compound) %>%
-  summarise(
-    integration_area = trapz(rt, Average_Intensity),
-    .groups = "drop"
-  )
-
-# ===============================
-# Step 2: Wide format
-# ===============================
-integrated_data_wide <- integrated_data %>%
-  pivot_wider(
-    names_from  = Intensity_Type,
-    values_from = integration_area
-  )
-
-# ===============================
-# Step 3: Back to long
-# ===============================
-integrated_data_long_wide <- integrated_data_wide %>%
-  pivot_longer(
-    cols = -c(Wash, Sample, Replicate, Sequence, Compound),
-    names_to = "Intensity_Type",
-    values_to = "integration_area"
-  )
-
-# ===============================
-# Step 4: Filter + relabel
-# ===============================
-integrated_data_long_wide_filtered <- integrated_data_long_wide %>%
-  group_by(Wash, Replicate) %>%
-  filter(!(Intensity_Type == "intensity" & duplicated(Intensity_Type))) %>%
-  ungroup() %>%
-  mutate(
-    Compound = if_else(
-      Intensity_Type == "intensity",
-      "Uncorrected",
-      Compound
-    )
-  ) %>%
-  filter(
-    Intensity_Type != "intensity" | Compound == "Uncorrected"
-  ) %>%
-  mutate(
-    Compound = factor(
-      Compound,
-      levels = c(
-        "Uncorrected",
-        "Tryptophan-d5",
-        "Leucine-d10",
-        "Glucose-13C6",
-        "StearicAcid-d35",
-        "Indole-d6",
-        "Carnitine-d9"
-      )
-    )
-  )
-
-# ===============================
-# Step 5: Error statistics
-# ===============================
-error_data <- integrated_data_long_wide_filtered %>%
-  group_by(Wash, Compound) %>%
-  summarise(
-    Mean = mean(integration_area, na.rm = TRUE),
-    SD   = sd(integration_area, na.rm = TRUE),
-    SE   = SD / sqrt(n()),
-    RSD_percent = (SD / Mean) * 100,
-    .groups = "drop"
-  )
-
-# ===============================
-# Step 6: Compound labels
-# ===============================
-error_data <- error_data %>%
-  mutate(
-    Compound_plot = recode(
-      as.character(Compound),
-      "Uncorrected"     = "Uncorrected",
-      "Tryptophan-d5"   = "Tryptophan-d[5]",
-      "Leucine-d10"     = "Leucine-d[10]",
-      "Glucose-13C6"    = "Glucose-{}^{13}*C[6]",
-      "StearicAcid-d35" = "Stearic~acid-d[35]",
-      "Indole-d6"       = "Indole-d[6]",
-      "Carnitine-d9"    = "Carnitine-d[9]"
-    ),
-    Compound_plot = factor(
-      Compound_plot,
-      levels = c(
-        "Uncorrected",
-        "Tryptophan-d[5]",
-        "Leucine-d[10]",
-        "Glucose-{}^{13}*C[6]",
-        "Stearic~acid-d[35]",
-        "Indole-d[6]",
-        "Carnitine-d[9]"
-      )
-    )
-  )
-
-compound_rsd_all_washes <- integrated_data_long_wide_filtered %>%
-  group_by(Compound) %>%
-  summarise(
-    Mean_all = mean(integration_area, na.rm = TRUE),
-    SD_all = sd(integration_area, na.rm = TRUE),
-    RSD_all_washes = (SD_all / Mean_all) * 100,
-    .groups = "drop"
-  ) %>%
-  mutate(
-    Compound_plot = recode(
-      as.character(Compound),
-      "Uncorrected"     = "Uncorrected",
-      "Tryptophan-d5"   = "Tryptophan-d[5]",
-      "Leucine-d10"     = "Leucine-d[10]",
-      "Glucose-13C6"    = "Glucose-{}^{13}*C[6]",
-      "StearicAcid-d35" = "Stearic~acid-d[35]",
-      "Indole-d6"       = "Indole-d[6]",
-      "Carnitine-d9"    = "Carnitine-d[9]"
-    ),
-    Compound_plot = factor(
-      Compound_plot,
-      levels = levels(error_data$Compound_plot)
-    )
-  )
-
-# ===============================
-# Step 7: Bar plot
-# ===============================
-barplot_compounds_with_error_leu <- ggplot(
-  error_data,
-  aes(x = Wash, y = Mean, fill = Wash)
-) +
-  geom_bar(
-    stat = "identity",
-    color = "black",
-    linewidth = 0.5
-  ) +
-  geom_errorbar(
-    aes(ymin = Mean - SE, ymax = Mean + SE),
-    width = 0.25,
-    color = "black"
-  ) +
-  geom_text(
-    aes(
-      y = Mean + SE + 0.05,
-      label = paste0(signif(RSD_percent, 2), "%")
-    ),
-    size = 3,
-    vjust = -0.5
-  ) +
-  geom_text(
-  data = compound_rsd_all_washes,
+WC_plot_pos <- ggplot(
+  WC_plot_df_pos,
   aes(
-    x = 3,
-    y = Inf,
-    label = paste0("RSD = ", round(RSD_all_washes, 1), "%")
-  ),
-  inherit.aes = FALSE,
-  vjust = 1.3,
-  #fontface = "bold",
-  size = 2.5
+    x = Treatment,
+    y = Area,
+    color = Signal,
+    group = Signal
+  )
 ) +
-  scale_x_discrete(labels = NULL) +
-  scale_y_continuous(
-    labels = scales::scientific,
-    expand = expansion(mult = c(0, 0.3))
-  ) +
+  geom_point(size = 2, alpha = 0.85) +
+  geom_line(alpha = 0.7) +
+  shared_colors +
+  shared_y +
   facet_wrap(
-    ~Compound_plot,
-    ncol = 7,
-    drop = TRUE,
-    labeller = labeller(Compound_plot = label_parsed)
+    ~ Feature_RT,
+    scales = "free_y",
+    ncol = 3
   ) +
   labs(
-    title = "B",
+    title = "Positive ionization mode",
     x = NULL,
-    y = "Integrated Area",
-    fill = NULL
+    y = "Area",
+    color = NULL
   ) +
-  theme_minimal(base_size = 12) +
+  shared_theme
+
+# ============================================================
+# 5. Negative plot
+# ============================================================
+
+WC_plot_neg <- ggplot(
+  WC_plot_df_neg,
+  aes(
+    x = Treatment,
+    y = Area,
+    color = Signal,
+    group = Signal
+  )
+) +
+  geom_point(size = 2, alpha = 0.85) +
+  geom_line(alpha = 0.7) +
+  shared_colors +
+  shared_y +
+  facet_wrap(
+    ~ Feature_RT,
+    scales = "free_y",
+    ncol = 3
+  ) +
+  labs(
+    title = "Negative ionization mode",
+    x = NULL,
+    y = "Area",
+    color = NULL
+  ) +
+  shared_theme
+
+# ============================================================
+# 6. Combine positive above negative
+# ============================================================
+
+# ============================================================
+# 7. Combine positive above negative with proportional heights
+# ============================================================
+
+ncol_facets <- 3
+
+n_rows_pos <- ceiling(n_distinct(WC_plot_df_pos$Feature_RT) / ncol_facets)
+n_rows_neg <- ceiling(n_distinct(WC_plot_df_neg$Feature_RT) / ncol_facets)
+
+WC_plot <- (
+  WC_plot_pos /
+    WC_plot_neg
+) +
+  plot_layout(
+    heights = c(n_rows_pos, n_rows_neg),
+    guides = "collect"
+  ) &
   theme(
-    legend.position = "bottom",
-    axis.text.y = element_text(size = 12),
-    axis.text.x = element_blank(),
-    axis.ticks.x = element_blank(),
-    strip.text.x = element_text(size = 9),
-    panel.grid = element_blank(),
-    axis.line = element_line(color = "black"),
-    axis.ticks.y = element_line(color = "black"),
-    plot.title.position = "plot",
-    plot.title = element_text(
-      hjust = 0,
-      face = "bold",
-      size = 12
-    )
+    legend.position = "bottom"
   )
 
-# ===============================
-# Display
-# ===============================
-print(barplot_compounds_with_error_leu)
+WC_plot
+# ============================================================
+# 8. Save PNG
+# ============================================================
 
-### Combine Plots:
-
-combined_mef_plot_leu <- All_plot_EIC_long_leu / barplot_compounds_with_error_leu 
- 
-print(combined_mef_plot_leu)
-
-
-### SI-XX
-
-# Save PNG
 ggsave(
-  filename = file.path(output_dir, "Figure_SI-19.png"),
-  plot = combined_mef_plot_leu,
-  width = 30,
-  height = 20,
+  filename = file.path(
+    output_dir,
+    "Figure_SI-20.png"
+  ),
+  plot = WC_plot,
+  width = 22,
+  height = 30,
   units = "cm",
   dpi = 1000
 )
 
-# Save TIFF
+# ============================================================
+# 9. Save TIFF
+# ============================================================
+
 ggsave(
-  filename = file.path(output_dir, "Figure_SI-19.tiff"),
-  plot = combined_mef_plot_leu,
-  width = 30,
-  height = 20,
+  filename = file.path(
+    output_dir,
+    "Figure_SI-20.tiff"
+  ),
+  plot = WC_plot,
+  width = 22,
+  height = 30,
   units = "cm",
   dpi = 1000,
   device = "tiff",
@@ -10734,66 +11112,520 @@ kable(
 
 ```
 
-## Table SI-4
+## Change in Standard Names using Refmet
 
-```{r table-si-4-setup}
-#---------------------------------------------
-# 1. Filter and recode wash labels
-#---------------------------------------------
-wash_subset <- summarized_data %>%
-  filter(homologue_id %in% c(1,14,16,17,18,19),
-         Sequence <= 45,
-         Sample == "Blank",
-         Wash %in% c("NoWash", "22x", "08x", "04x")) %>%
-  mutate(
-    Wash = recode(Wash,
-                  "22x"    = "PLR 22x Wash",
-                  "08x"    = "PLR 8x Wash",
-                  "04x"    = "PLR 4x Wash",
-                  "NoWash" = "PLR Unwashed"),
-    Wash = factor(Wash,
-                  levels = c("PLR Unwashed", "PLR 4x Wash",
-                             "PLR 8x Wash", "PLR 22x Wash")),
-    
-    # ⭐ New readable facet labels
-    homologue_id = factor(homologue_id,
-                          levels = c(1,14,16,17,18,19),
-                          labels = c("1",
-                                     "14",
-                                     "16",
-                                     "17",
-                                     "18",
-                                     "19"))
+```{r}
+# ============================================================
+# RefMet conversion for all names
+# InChIKey cross-check using Excel column "InChI Key"
+# ============================================================
+
+library(here)
+library(readxl)
+library(dplyr)
+library(purrr)
+library(curl)
+library(stringi)
+library(stringr)
+library(tibble)
+library(writexl)
+
+# ============================================================
+# 1. Read names and InChIKeys from Excel
+# ============================================================
+
+Sup_info <- here("Data", "Supplementary Data.xlsx")
+
+DF_all <- readxl::read_excel(
+  Sup_info,
+  sheet = "Feature List"
+) %>%
+  dplyr::select(
+    Name,
+    Excel_InChIKey = `InChI Key`
+  ) %>%
+  dplyr::mutate(
+    Row_ID = dplyr::row_number(),
+    Name = as.character(Name),
+    Excel_InChIKey = as.character(Excel_InChIKey),
+    Excel_InChIKey_clean = Excel_InChIKey %>%
+      stringr::str_trim() %>%
+      stringr::str_to_upper() %>%
+      dplyr::na_if("") %>%
+      dplyr::na_if("-")
   )
 
-#---------------------------------------------
-# Mean summary table
-#---------------------------------------------
-wash_means_pub <- wash_subset %>%
-  group_by(homologue_id, Wash) %>%
-  summarise(
-    n    = n(),
-    Mean = round(mean(Intensity, na.rm = TRUE), 0),   # no decimals
-    SD   = round(sd(Intensity, na.rm = TRUE), 0),     # no decimals
-    .groups = "drop"
+cat("Total rows:", nrow(DF_all), "\n")
+
+# ============================================================
+# 2. Split into small batches
+# ============================================================
+
+batch_size <- 100
+
+DF_all <- DF_all %>%
+  dplyr::mutate(
+    Batch = ceiling(Row_ID / batch_size)
+  )
+
+batches <- split(
+  DF_all,
+  DF_all$Batch
+)
+
+total_batches <- length(batches)
+
+cat("Total batches:", total_batches, "\n")
+
+# ============================================================
+# 3. RefMet endpoint
+# ============================================================
+
+refmet_url <- paste0(
+  "https://www.metabolomicsworkbench.org/",
+  "databases/refmet/name_to_refmet_new_minID.php"
+)
+
+# ============================================================
+# 4. Function to query one batch
+# ============================================================
+
+query_one_batch <- function(batch_df) {
+
+  batch_number <- unique(batch_df$Batch)
+
+  message(
+    "Running batch ",
+    batch_number,
+    " of ",
+    total_batches
+  )
+
+  batch_valid <- batch_df %>%
+    dplyr::filter(
+      !is.na(Name),
+      stringr::str_trim(Name) != ""
+    )
+
+  if (nrow(batch_valid) == 0) {
+    return(
+      tibble::tibble(
+        Row_ID = character(),
+        `Input name` = character(),
+        `Standardized name` = character(),
+        Formula = character(),
+        `Exact mass` = character(),
+        `Super class` = character(),
+        `Main class` = character(),
+        `Sub class` = character(),
+        PubChem_CID = character(),
+        ChEBI_ID = character(),
+        HMDB_ID = character(),
+        LM_ID = character(),
+        KEGG_ID = character(),
+        INCHI_KEY = character(),
+        RefMet_ID = character(),
+        Batch = character(),
+        Batch_status = character()
+      )
+    )
+  }
+
+  mets <- stringi::stri_join(
+    batch_valid$Name,
+    collapse = "\n"
+  )
+
+  h <- curl::new_handle()
+
+  curl::handle_setform(
+    h,
+    metabolite_name = mets
+  )
+
+  result <- tryCatch(
+    {
+      req <- curl::curl_fetch_memory(
+        refmet_url,
+        handle = h
+      )
+
+      response_text <- rawToChar(req$content)
+
+      if (
+        grepl(
+          "Internal error|SQL execution failed|<html|<br",
+          response_text,
+          ignore.case = TRUE
+        )
+      ) {
+        stop("RefMet server returned an error")
+      }
+
+      output <- read.delim(
+        text = response_text,
+        header = TRUE,
+        na.strings = "-",
+        stringsAsFactors = FALSE,
+        quote = "",
+        comment.char = "",
+        check.names = FALSE,
+        fill = TRUE
+      ) %>%
+        tibble::as_tibble() %>%
+        dplyr::mutate(
+          dplyr::across(
+            dplyr::everything(),
+            as.character
+          )
+        )
+
+      expected_columns <- c(
+        "Input name",
+        "Standardized name",
+        "Formula",
+        "Exact mass",
+        "Super class",
+        "Main class",
+        "Sub class",
+        "PubChem_CID",
+        "ChEBI_ID",
+        "HMDB_ID",
+        "LM_ID",
+        "KEGG_ID",
+        "INCHI_KEY",
+        "RefMet_ID"
+      )
+
+      missing_columns <- setdiff(
+        expected_columns,
+        names(output)
+      )
+
+      for (column_name in missing_columns) {
+        output[[column_name]] <- NA_character_
+      }
+
+      # Remove duplicate uppercase ID columns if returned
+      output <- output %>%
+        dplyr::select(
+          -dplyr::any_of(
+            c(
+              "PUBCHEM_CID",
+              "CHEBI_ID",
+              "REFMET_ID"
+            )
+          )
+        )
+
+      # Match RefMet results back to submitted rows by input name
+      output <- output %>%
+        dplyr::left_join(
+          batch_valid %>%
+            dplyr::select(
+              Row_ID,
+              Name,
+              Batch
+            ) %>%
+            dplyr::mutate(
+              Row_ID = as.character(Row_ID),
+              Batch = as.character(Batch)
+            ),
+          by = c("Input name" = "Name")
+        ) %>%
+        dplyr::mutate(
+          Batch_status = "Success"
+        )
+
+      output
+    },
+    error = function(e) {
+
+      warning(
+        "Batch ",
+        batch_number,
+        " failed: ",
+        conditionMessage(e)
+      )
+
+      batch_valid %>%
+        dplyr::transmute(
+          Row_ID = as.character(Row_ID),
+          `Input name` = as.character(Name),
+          `Standardized name` = NA_character_,
+          Formula = NA_character_,
+          `Exact mass` = NA_character_,
+          `Super class` = NA_character_,
+          `Main class` = NA_character_,
+          `Sub class` = NA_character_,
+          PubChem_CID = NA_character_,
+          ChEBI_ID = NA_character_,
+          HMDB_ID = NA_character_,
+          LM_ID = NA_character_,
+          KEGG_ID = NA_character_,
+          INCHI_KEY = NA_character_,
+          RefMet_ID = NA_character_,
+          Batch = as.character(Batch),
+          Batch_status = "Failed"
+        )
+    }
+  )
+
+  Sys.sleep(0.2)
+
+  result
+}
+
+# ============================================================
+# 5. Run all batches
+# ============================================================
+
+refmet_all <- purrr::map_dfr(
+  batches,
+  query_one_batch
+)
+
+refmet_all <- refmet_all %>%
+  dplyr::mutate(
+    Row_ID = as.numeric(Row_ID)
+  )
+
+# ============================================================
+# 6. Clean RefMet InChIKeys
+# ============================================================
+
+refmet_all <- refmet_all %>%
+  dplyr::mutate(
+    RefMet_InChIKey_clean = INCHI_KEY %>%
+      as.character() %>%
+      stringr::str_trim() %>%
+      stringr::str_to_upper() %>%
+      dplyr::na_if("") %>%
+      dplyr::na_if("-")
+  )
+
+# ============================================================
+# 7. Add Excel values to every RefMet result
+# ============================================================
+
+refmet_matches <- refmet_all %>%
+  dplyr::left_join(
+    DF_all %>%
+      dplyr::select(
+        Row_ID,
+        Name,
+        Excel_InChIKey,
+        Excel_InChIKey_clean
+      ),
+    by = "Row_ID"
+  )
+
+# ============================================================
+# 8. Compare InChIKeys and score matches
+# ============================================================
+
+refmet_matches <- refmet_matches %>%
+  dplyr::mutate(
+    InChIKey_check = dplyr::case_when(
+      Batch_status == "Failed" ~
+        "RefMet request failed",
+
+      is.na(Excel_InChIKey_clean) &
+        is.na(RefMet_InChIKey_clean) ~
+        "No InChIKey available",
+
+      is.na(Excel_InChIKey_clean) ~
+        "No Excel InChIKey",
+
+      is.na(RefMet_InChIKey_clean) ~
+        "No RefMet InChIKey",
+
+      Excel_InChIKey_clean ==
+        RefMet_InChIKey_clean ~
+        "Full match",
+
+      substr(Excel_InChIKey_clean, 1, 14) ==
+        substr(RefMet_InChIKey_clean, 1, 14) ~
+        "Connectivity match",
+
+      TRUE ~
+        "Mismatch"
+    ),
+
+    Match_score = dplyr::case_when(
+      InChIKey_check == "Full match" ~ 1L,
+      InChIKey_check == "Connectivity match" ~ 2L,
+      InChIKey_check == "No Excel InChIKey" ~ 3L,
+      InChIKey_check == "No RefMet InChIKey" ~ 4L,
+      InChIKey_check == "No InChIKey available" ~ 5L,
+      InChIKey_check == "Mismatch" ~ 6L,
+      InChIKey_check == "RefMet request failed" ~ 7L,
+      TRUE ~ 8L
+    )
+  )
+
+# ============================================================
+# 9. Select best RefMet match for each Excel row
+# ============================================================
+
+refmet_best <- refmet_matches %>%
+  dplyr::group_by(Row_ID) %>%
+  dplyr::arrange(
+    Match_score,
+    `Standardized name`,
+    .by_group = TRUE
   ) %>%
-  arrange(homologue_id, Wash)
+  dplyr::slice_head(n = 1) %>%
+  dplyr::ungroup()
 
-kable(
-  wash_means_pub,
-  caption = "Table SI-4. Summary statistics of treatment-derived contaminant intensities across PLR wash conditions. Values are reported as mean ± standard deviation for each homologue series ID, calculated from blank samples for PLR Unwashed, PLR 4× Wash, PLR 8× Wash, and PLR 22× Wash conditions.",
-  col.names = c("Homologue ID", "Wash Condition", "Sample Count (n)", "Mean Intensity", "SD Intensity"),
-  align = "c",
-  booktabs = TRUE,
-  format = "html"   # ensures nice formatting when copied to Word
-) %>%
-  kable_styling(
-    full_width = FALSE,
-    position = "center",
-    bootstrap_options = c("striped", "hover", "condensed")
+# ============================================================
+# 10. Remove duplicate ID columns and rename clearly
+# ============================================================
+
+refmet_best <- refmet_best %>%
+  dplyr::select(
+    -dplyr::any_of(
+      c(
+        "PUBCHEM_CID",
+        "CHEBI_ID",
+        "REFMET_ID"
+      )
+    )
   ) %>%
-  row_spec(0, bold = TRUE) %>%                 # bold header
-  collapse_rows(columns = 1, valign = "middle")  # group homologues
+  dplyr::rename(
+    RefMet_Input_name = `Input name`,
+    RefMet_name = `Standardized name`,
+    RefMet_Formula = Formula,
+    RefMet_Exact_mass = `Exact mass`,
+    RefMet_Super_class = `Super class`,
+    RefMet_Main_class = `Main class`,
+    RefMet_Sub_class = `Sub class`,
+    RefMet_InChIKey = INCHI_KEY,
+    RefMet_PubChem_CID = PubChem_CID,
+    RefMet_ChEBI_ID = ChEBI_ID,
+    RefMet_HMDB_ID = HMDB_ID,
+    RefMet_LipidMaps_ID = LM_ID,
+    RefMet_KEGG_ID = KEGG_ID
+  )
 
+# RefMet_ID already has the correct name and is kept unchanged
 
+# ============================================================
+# 11. Final result in original row order
+# ============================================================
+
+result_all <- DF_all %>%
+  dplyr::select(
+    Row_ID,
+    Name,
+    Excel_InChIKey,
+    Batch
+  ) %>%
+  dplyr::left_join(
+    refmet_best %>%
+      dplyr::select(
+        Row_ID,
+        RefMet_Input_name,
+        RefMet_name,
+        RefMet_Formula,
+        RefMet_Exact_mass,
+        RefMet_Super_class,
+        RefMet_Main_class,
+        RefMet_Sub_class,
+        RefMet_InChIKey,
+        RefMet_PubChem_CID,
+        RefMet_ChEBI_ID,
+        RefMet_HMDB_ID,
+        RefMet_LipidMaps_ID,
+        RefMet_KEGG_ID,
+        RefMet_ID,
+        InChIKey_check,
+        Batch_status
+      ),
+    by = "Row_ID"
+  ) %>%
+  dplyr::arrange(Row_ID)
+
+# ============================================================
+# 12. Create review tables
+# ============================================================
+
+manual_review <- result_all %>%
+  dplyr::filter(
+    InChIKey_check %in% c(
+      "Connectivity match",
+      "Mismatch",
+      "RefMet request failed"
+    )
+  )
+
+all_multiple_matches <- refmet_matches %>%
+  dplyr::group_by(Row_ID) %>%
+  dplyr::filter(dplyr::n() > 1) %>%
+  dplyr::ungroup() %>%
+  dplyr::arrange(
+    Row_ID,
+    Match_score
+  )
+
+# ============================================================
+# 13. Inspect results
+# ============================================================
+
+View(result_all)
+View(manual_review)
+View(all_multiple_matches)
+
+print(
+  result_all %>%
+    dplyr::count(
+      Batch_status,
+      sort = TRUE
+    )
+)
+
+print(
+  result_all %>%
+    dplyr::count(
+      InChIKey_check,
+      sort = TRUE
+    )
+)
+
+cat(
+  "\nRows with multiple RefMet matches:",
+  dplyr::n_distinct(all_multiple_matches$Row_ID),
+  "\n"
+)
+
+# ============================================================
+# 14. Save output
+# ============================================================
+
+output_file <- file.path(
+  results_dir,
+  "RefMet_name_crosscheck.xlsx"
+)
+
+writexl::write_xlsx(
+  list(
+    Best_RefMet_match = result_all,
+    Manual_review = manual_review,
+    All_multiple_matches = all_multiple_matches
+  ),
+  output_file
+)
+
+cat(
+  "\nSaved to:\n",
+  output_file,
+  "\n"
+)
+```
+
+# Reproducibility record
+
+```{r session-information}
+## Record the exact software environment used for this run.
+sessionInfo()
 ```
