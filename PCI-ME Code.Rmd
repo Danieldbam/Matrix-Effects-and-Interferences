@@ -5543,6 +5543,71 @@ plot_df_neg %>%
     n_features = n_distinct(Feature),
     .groups = "drop"
   )
+
+
+# ============================================================
+# Export MF correction results to Supplementary Data
+# ============================================================
+Sup_info <- here("Data", "Supplementary Data.xlsx")
+# Feature m/z and retention time, both polarities
+feature_info <- bind_rows(
+  rsd_per_wash15     %>% mutate(Polarity = "POS"),
+  rsd_per_wash15_neg %>% mutate(Polarity = "NEG")
+) %>%
+  distinct(Polarity, Feature, Name, mz, rt)
+# --- Sheet 1: one row per feature and correction strategy, with the RSDs ---
+mf_correction_summary <- bind_rows(
+  plot_df     %>% mutate(Polarity = "POS"),
+  plot_df_neg %>% mutate(Polarity = "NEG")
+) %>%
+  left_join(feature_info, by = c("Polarity", "Feature")) %>%
+  transmute(
+    Polarity,
+    Feature,
+    Name,
+    mz,
+    RT_min                     = rt,
+    Correction_strategy        = as.character(Type),
+    Applied_correction         = Chosen,
+    Applied_PCI_SILS           = Chosen_PCI,
+    RSD_training_uncorrected   = train_rsd_uncorrected,
+    RSD_training_corrected     = Best_train_RSD,
+    RSD_validation_uncorrected = RSD_uncorrected,
+    RSD_validation_corrected   = RSD_corrected,
+    RSD_validation_selected    = RSD_val
+  ) %>%
+  arrange(Polarity, Feature, Correction_strategy)
+# --- Sheet 2: uncorrected and corrected peak areas per replicate ---
+mf_correction_areas <- bind_rows(
+  result_long     %>% mutate(Polarity = "POS"),
+  result_long_neg %>% mutate(Polarity = "NEG")
+) %>%
+  select(
+    Polarity, Feature, Name, Wash, Replicate,
+    PCI = Compound,
+    mean_MF, median_MF, min_MF,
+    Correction_Type, Corrected_Value
+  ) %>%
+  pivot_wider(
+    names_from  = Correction_Type,
+    values_from = Corrected_Value
+  ) %>%
+  left_join(
+    feature_info %>% select(Polarity, Feature, mz, rt),
+    by = c("Polarity", "Feature")
+  ) %>%
+  arrange(Polarity, Feature, Wash, Replicate, PCI)
+# --- Write back, keeping every existing sheet ---
+sheet_names <- readxl::excel_sheets(Sup_info)
+sup_data <- lapply(sheet_names, function(s) read_excel(Sup_info, sheet = s))
+names(sup_data) <- sheet_names
+sup_data[["MF Correction"]]       <- mf_correction_summary
+sup_data[["MF Correction Areas"]] <- mf_correction_areas
+writexl::write_xlsx(sup_data, Sup_info)
+cat("MF Correction:", nrow(mf_correction_summary), "rows\n")
+cat("MF Correction Areas:", nrow(mf_correction_areas), "rows\n")
+
+
 ```
 
 ## Plotting negative-mode summary
@@ -7965,10 +8030,64 @@ combined_spectra <- purrr::pmap_dfr(
 )
 
 #---------------------------------------------
-# 4. Plot
 #---------------------------------------------
-target_masses <- c(204.1173, 204.1230)
+# 4. Effective mass resolution (m/Δm at FWHM)
+#---------------------------------------------
+target_masses <- c(204.1173, 204.1230)   # glucose-13C6 , acetyl-carnitine
+mid_mz <- mean(target_masses)            # split point between the two peaks
 
+# Half-width is measured on the outer flank only (the side facing away from the
+# other peak) and doubled, so partial overlap cannot widen it.
+get_resolution <- function(df, target_mz) {
+  
+  df <- df %>% arrange(mz)
+  
+  if (target_mz < mid_mz) {
+    df <- df %>% dplyr::filter(mz <= mid_mz)
+  } else {
+    df <- df %>% dplyr::filter(mz >= mid_mz)
+  }
+  
+  apex <- which.max(df$intensity)
+  half <- df$intensity[apex] / 2
+  
+  # Apex sitting on the edge means the peak has coalesced with its neighbour
+  if (apex == 1 || apex == nrow(df)) {
+    return(data.frame(target = target_mz, apex_mz = NA, fwhm = NA, R = NA))
+  }
+  
+  flank <- if (target_mz < mid_mz) df[1:apex, ] else df[apex:nrow(df), ]
+  mz_half <- approx(flank$intensity, flank$mz, xout = half, ties = min)$y
+  fwhm <- 2 * abs(df$mz[apex] - mz_half)
+  
+  data.frame(target = target_mz, apex_mz = df$mz[apex],
+             fwhm = fwhm, R = df$mz[apex] / fwhm)
+}
+
+resolution_table <- combined_spectra %>%
+  group_by(sample, scan) %>%
+  group_modify(~ purrr::map_dfr(target_masses, get_resolution, df = .x)) %>%
+  ungroup()
+
+print(resolution_table, n = Inf)
+
+write_csv(resolution_table, here("Data", "Figure_SI-14_resolution.csv"))
+
+# Labels: one per resolved peak, placed beside its dashed line
+peak_labels <- resolution_table %>%
+  dplyr::filter(!is.na(R)) %>%
+  mutate(peak = ifelse(target < mid_mz, "glucose", "carnitine")) %>%
+  dplyr::filter(!paste(sample, scan, peak) %in%
+                  c("240K Scan 3 glucose", "240K Scan 4 glucose")) %>%
+  mutate(
+    x = target + ifelse(target < mid_mz, -0.0010, 0.0010),
+    y = 1.6e6,
+    label = paste0("R = ", format(round(R, -3), big.mark = ",", trim = TRUE))
+  )
+
+#---------------------------------------------
+# 5. Plot
+#---------------------------------------------
 spectrum_glucose <- ggplot(combined_spectra, aes(x = mz, y = intensity)) +
   
   # ⭐ Color by resolution (sample)
@@ -7976,9 +8095,17 @@ spectrum_glucose <- ggplot(combined_spectra, aes(x = mz, y = intensity)) +
   
   geom_vline(xintercept = target_masses, linetype = "dashed", color = "black") +
   
+  # ⭐ Effective resolving power beside each peak
+  geom_text(
+    data = peak_labels,
+    aes(x = x, y = y, label = label),
+    inherit.aes = FALSE,
+    angle = 90, hjust = 0.5, size = 3, color = "black"
+  ) +
+  
   facet_grid(sample ~ scan, scales = "free_x") +
   
-  coord_cartesian(ylim = c(0, 2.5e6)) +
+  coord_cartesian(xlim = c(204.11, 204.13), ylim = c(0, 2.5e6)) +
   
   scale_y_continuous(labels = scales::scientific) +
   
@@ -8029,8 +8156,6 @@ ggsave(
   width = 20, height = 20, units = "cm",
   dpi = 1000, device = "tiff", compression = "lzw"
 )
-
-
 ```
 
 ### Combining dilution and ME plots (figure 7 and 8)
