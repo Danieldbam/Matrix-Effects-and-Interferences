@@ -1093,7 +1093,7 @@ plot_EIC_sig_brackets1 <- ggplot(
   facet_grid(~ Wash) +
   scale_x_continuous(
     breaks = c(3.5, 4.0, 4.5, 5.0, 5.5),
-    labels = c("", "4.0", "", "5.0", "")
+    labels = c("", "4", "", "5", "")
   ) +
   scale_y_continuous(
     labels = scales::scientific
@@ -1256,7 +1256,7 @@ plot_EIC_sig_brackets2 <- ggplot(
   facet_grid(~ Wash) +
   scale_x_continuous(
     breaks = c(3.5, 4.0, 4.5, 5.0, 5.5),
-    labels = c("", "4.0", "", "5.0", "")
+    labels = c("", "4", "", "5", "")
   ) +
   scale_y_continuous(
     labels = scales::scientific
@@ -4476,7 +4476,7 @@ if (length(diff_values) >= 3 &&
     paired_rsd$RSD_uncorrected,
     paired_rsd$RSD_val,
     paired = TRUE,
-    alternative = "greater"
+    alternative = "two.sided",
   )
   
   test_type <- "Paired t-test"
@@ -4487,7 +4487,7 @@ if (length(diff_values) >= 3 &&
     paired_rsd$RSD_uncorrected,
     paired_rsd$RSD_val,
     paired = TRUE,
-    alternative = "greater",
+    alternative = "two.sided",
     exact = FALSE
   )
   
@@ -5762,7 +5762,7 @@ median_rsd_neg <- plot_rsd_hist_neg %>%
 # ============================================================
 
 paired_rsd_neg <- plot_df_neg %>%
-  #filter(Type == "Best mean/uncorrected") %>%
+  filter(Type == "Best mean/uncorrected") %>%
   select(Feature, Type, RSD_uncorrected, RSD_val) %>%
   distinct() %>%
   filter(!is.na(RSD_uncorrected), !is.na(RSD_val))
@@ -5776,7 +5776,7 @@ if (length(diff_values_neg) >= 3 &&
     paired_rsd_neg$RSD_uncorrected,
     paired_rsd_neg$RSD_val,
     paired = TRUE,
-    alternative = "greater"
+    alternative = "two.sided",
   )
   
   test_type_neg <- "Paired t-test"
@@ -5787,7 +5787,7 @@ if (length(diff_values_neg) >= 3 &&
     paired_rsd_neg$RSD_uncorrected,
     paired_rsd_neg$RSD_val,
     paired = TRUE,
-    alternative = "greater",
+    alternative = "two.sided",
     exact = FALSE
   )
   
