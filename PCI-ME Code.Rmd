@@ -13,7 +13,6 @@ This document reproduces every figure and supplementary item in the manuscript. 
 
 1.  **Main Figures** (Figure 1-7)
 2.  **Supplementary Figures** (Figure SI-1 - SI-20)
-3.  **Supplementary Tables** (Table SI-1 - SI-4)
 
 Each figure follows the same workflow: **extract the data -\> make the plot(s) -\> combine panels if needed -\> export as PNG and TIFF**.
 
@@ -26,7 +25,6 @@ Each figure follows the same workflow: **extract the data -\> make the plot(s) -
 -   **Load libraries**
     -   Figure 1. ME PPT vs PLR unwashed
     -   Figure 2. ME and Blanks
-    -   Homologue annotation (data for Figure 3)
     -   Figure 3.
     -   Figure 4
     -   Figure 5. Dilution series
@@ -59,11 +57,6 @@ Each figure follows the same workflow: **extract the data -\> make the plot(s) -
     -   Figure SI-18. RSD change versus retention time
     -   Figure SI-19. Improved and worsened features
     -   Figure SI-20. Individual worsened features
--   **Supplementary Tables**
-    -   Table SI-1
-    -   Table SI-2
-    -   Table SI-3
-    -   Table SI-4
 
 ### Reproducibility
 
@@ -1430,15 +1423,16 @@ ggsave(
 
 ```
 
-## Homologue annotation (data for Figure 3)
+## Figure 3. Homologue Series
 
 ### Data prep: build merged_df used by Figure 3 and the negative-mode summary
 
 ```{r homologue-dataprep}
 # ---- Data prep: build merged_df used by Figure 3 and the negative-mode summary ----
-Sup_info <- here("Data","Supplementary Data.xlsx")
+Sup_info <- here("Data","Supplementary Tables.xlsx")
 
-data3<- read_excel(Sup_info, sheet = "Feature List")
+data3 <- read_excel(Sup_info, sheet = "Table SI-5",
+  skip = 1) 
 
 peak_table1 <- data3 %>%
   select(id, mz, rt) %>%  
@@ -1548,8 +1542,6 @@ merged_df <- merged_df %>%
 merged_df$molecular_formula <- as.factor(merged_df$molecular_formula)
 merged_df$homologue_id <- as.factor(merged_df$homologue_id)
 ```
-
-## Figure 3. Homologue Series
 
 ### Data and ClassifyR
 
@@ -1690,8 +1682,8 @@ print(head(final_df))
 ```{r figure-3-heatmap}
 # ---- Heatmap ----
 
-Sup_info <- here("Data","Supplementary Data.xlsx")
-data4<- read_excel(Sup_info, sheet = "Peak Areas")
+Sup_info <- here("Data","Supplementary Tables.xlsx")
+data4<- read_excel(Sup_info, sheet = "Table SI-6", skip = 1)
 
 # Step 1: Extract "id", homologue_id, and molecular_formula from merged_df
 compound_info <- merged_df %>%
@@ -3711,10 +3703,10 @@ feat.intensity.threshold  <- 1e4 #(previous 1e6)
 signal.factor <- 3
 
 
-Sup_info <- here("Data","Supplementary Data.xlsx")
-data4<- read_excel(Sup_info, sheet = "Peak Areas")
+Sup_info <- here("Data","Supplementary Tables.xlsx")
+data4 <- read_excel(Sup_info, sheet = "Table SI-6", skip = 1)
 
-data_meta <- read_excel(Sup_info, sheet = "Feature List") %>%
+data_meta <- read_excel(Sup_info, sheet = "Table SI-5", skip = 1) %>%
   mutate(
     Charge = case_when(
       Polarity == "POS" ~ 1,
@@ -4373,7 +4365,7 @@ correction_summary_table <- function(selected_type) {
       paired_rsd$Uncorrected,
       paired_rsd$Corrected,
       paired = TRUE,
-      alternative = "greater"
+      alternative = "two.sided"
     )
 
   } else {
@@ -4382,7 +4374,7 @@ correction_summary_table <- function(selected_type) {
       paired_rsd$Uncorrected,
       paired_rsd$Corrected,
       paired = TRUE,
-      alternative = "greater",
+      alternative = "two.sided",
       exact = FALSE
     )
   }
@@ -4551,35 +4543,35 @@ val_histo <- ggplot(plot_rsd_hist, aes(x = RSD, fill = Group)) +
     linewidth = 1
   ) +
   annotate(
-    "text",
-    x = Inf,
+  "text",
+  x = Inf,
   y = Inf,
   hjust = 1.0,
   vjust = 1.5,
-    label = paste0(
-      "Median uncorrected RSD = ",
-      sprintf("%.1f", median_rsd$Uncorrected),
-      "%"
-    ),
-    color = "#e31a1c",
-    size = 4,
-    fontface = "bold"
-  ) +
-  annotate(
-    "text",
-    x = Inf,
+  label = paste0(
+    "Median RSD, uncorrected = ",
+    sprintf("%.1f", median_rsd$Uncorrected),
+    "%"
+  ),
+  color = "#e31a1c",
+  size = 4,
+  fontface = "bold"
+) +
+annotate(
+  "text",
+  x = Inf,
   y = Inf,
   hjust = 1.0,
   vjust = 3,
-    label = paste0(
-      "Median corrected RSD = ",
-      sprintf("%.1f", median_rsd$Corrected),
-      "%"
-    ),
-    color = "#1f78b4",
-    size = 4,
-    fontface = "bold"
-  ) +
+  label = paste0(
+    "Median RSD, corrected = ",
+    sprintf("%.1f", median_rsd$Corrected),
+    "%"
+  ),
+  color = "#1f78b4",
+  size = 4,
+  fontface = "bold"
+) +
   annotate(
     "text",
     x = Inf,
@@ -4654,8 +4646,13 @@ rsd_delta_rt <- rsd_delta_rt %>%
 n_improved <- sum(rsd_delta_rt$Category == "Improved", na.rm = TRUE)
 n_worsened <- sum(rsd_delta_rt$Category == "Worsened", na.rm = TRUE)
 
-label_improved <- paste0("RSD ≥ ", RSD_CUTOFF, "%  (n = ", n_improved, ")")
-label_worsened <- paste0("RSD ≤ -", RSD_CUTOFF, "%  (n = ", n_worsened, ")")
+label_improved <- paste0(
+  "ΔRSD ≥ ", RSD_CUTOFF, "%  (n = ", n_improved, ")"
+)
+
+label_worsened <- paste0(
+  "ΔRSD ≤ -", RSD_CUTOFF, "%  (n = ", n_worsened, ")"
+)
 
 # ============================================================
 # 6️⃣ RT chromatogram improvement plot Panel C
@@ -4976,11 +4973,11 @@ matrix_effect_data_neg <- filtered_data_neg2 %>%
 feat.intensity.threshold <- 1e4
 signal.factor <- 3
 
-Sup_info <- here("Data", "Supplementary Data.xlsx")
+Sup_info <- here("Data", "Supplementary Tables.xlsx")
 
-data4 <- read_excel(Sup_info, sheet = "Peak Areas")
+data4 <- read_excel(Sup_info, sheet = "Table SI-6", skip = 1)
 
-data_meta <- read_excel(Sup_info, sheet = "Feature List") %>%
+data_meta <- read_excel(Sup_info, sheet = "Table SI-5", skip = 1) %>%
   mutate(
     Charge = case_when(
       Polarity == "POS" ~ 1,
@@ -5570,70 +5567,6 @@ plot_df_neg %>%
     .groups = "drop"
   )
 
-
-# # ============================================================
-# # Export MF correction results to Supplementary Data
-# # ============================================================
-# Sup_info <- here("Data", "Supplementary Data.xlsx")
-# # Feature m/z and retention time, both polarities
-# feature_info <- bind_rows(
-#   rsd_per_wash15     %>% mutate(Polarity = "POS"),
-#   rsd_per_wash15_neg %>% mutate(Polarity = "NEG")
-# ) %>%
-#   distinct(Polarity, Feature, Name, mz, rt)
-# # --- Sheet 1: one row per feature and correction strategy, with the RSDs ---
-# mf_correction_summary <- bind_rows(
-#   plot_df     %>% mutate(Polarity = "POS"),
-#   plot_df_neg %>% mutate(Polarity = "NEG")
-# ) %>%
-#   left_join(feature_info, by = c("Polarity", "Feature")) %>%
-#   transmute(
-#     Polarity,
-#     Feature,
-#     Name,
-#     mz,
-#     RT_min                     = rt,
-#     Correction_strategy        = as.character(Type),
-#     Applied_correction         = Chosen,
-#     Applied_PCI_SILS           = Chosen_PCI,
-#     RSD_training_uncorrected   = train_rsd_uncorrected,
-#     RSD_training_corrected     = Best_train_RSD,
-#     RSD_validation_uncorrected = RSD_uncorrected,
-#     RSD_validation_corrected   = RSD_corrected,
-#     RSD_validation_selected    = RSD_val
-#   ) %>%
-#   arrange(Polarity, Feature, Correction_strategy)
-# # --- Sheet 2: uncorrected and corrected peak areas per replicate ---
-# mf_correction_areas <- bind_rows(
-#   result_long     %>% mutate(Polarity = "POS"),
-#   result_long_neg %>% mutate(Polarity = "NEG")
-# ) %>%
-#   select(
-#     Polarity, Feature, Name, Wash, Replicate,
-#     PCI = Compound,
-#     mean_MF, median_MF, min_MF,
-#     Correction_Type, Corrected_Value
-#   ) %>%
-#   pivot_wider(
-#     names_from  = Correction_Type,
-#     values_from = Corrected_Value
-#   ) %>%
-#   left_join(
-#     feature_info %>% select(Polarity, Feature, mz, rt),
-#     by = c("Polarity", "Feature")
-#   ) %>%
-#   arrange(Polarity, Feature, Wash, Replicate, PCI)
-# # --- Write back, keeping every existing sheet ---
-# sheet_names <- readxl::excel_sheets(Sup_info)
-# sup_data <- lapply(sheet_names, function(s) read_excel(Sup_info, sheet = s))
-# names(sup_data) <- sheet_names
-# sup_data[["MF Correction"]]       <- mf_correction_summary
-# sup_data[["MF Correction Areas"]] <- mf_correction_areas
-# writexl::write_xlsx(sup_data, Sup_info)
-# cat("MF Correction:", nrow(mf_correction_summary), "rows\n")
-# cat("MF Correction Areas:", nrow(mf_correction_areas), "rows\n")
-# 
-
 ```
 
 ## Plotting negative-mode summary
@@ -5857,7 +5790,7 @@ val_histo_neg <- ggplot(plot_rsd_hist_neg, aes(x = RSD, fill = Group)) +
   hjust = 1.0,
   vjust = 1.5,
   label = paste0(
-    "Median uncorrected RSD = ",
+    "Median RSD, uncorrected = ",
     sprintf("%.1f", median_rsd_neg$Uncorrected),
     "%"
   ),
@@ -5872,7 +5805,7 @@ annotate(
   hjust = 1.0,
   vjust = 3.0,
   label = paste0(
-    "Median corrected RSD = ",
+    "Median RSD, corrected = ",
     sprintf("%.1f", median_rsd_neg$Corrected),
     "%"
   ),
@@ -5948,11 +5881,31 @@ rsd_delta_rt_neg <- rsd_delta_rt_neg %>%
     )
   )
 
-n_improved_neg <- sum(rsd_delta_rt_neg$Category == "Improved", na.rm = TRUE)
-n_worsened_neg <- sum(rsd_delta_rt_neg$Category == "Worsened", na.rm = TRUE)
+n_improved_neg <- sum(
+  rsd_delta_rt_neg$Category == "Improved",
+  na.rm = TRUE
+)
 
-label_improved_neg <- paste0("RSD ≥ ", RSD_CUTOFF, "%  (n = ", n_improved_neg, ")")
-label_worsened_neg <- paste0("RSD ≤ -", RSD_CUTOFF, "%  (n = ", n_worsened_neg, ")")
+n_worsened_neg <- sum(
+  rsd_delta_rt_neg$Category == "Worsened",
+  na.rm = TRUE
+)
+
+label_improved_neg <- paste0(
+  "\u0394RSD \u2265 ",
+  RSD_CUTOFF,
+  "%  (n = ",
+  n_improved_neg,
+  ")"
+)
+
+label_worsened_neg <- paste0(
+  "\u0394RSD \u2264 -",
+  RSD_CUTOFF,
+  "%  (n = ",
+  n_worsened_neg,
+  ")"
+)
 
 # ============================================================
 # 6️⃣ RT chromatogram improvement plot Panel B
@@ -7984,7 +7937,6 @@ ggsave(
 #---------------------------------------------
 # 1. Define mzML files + labels + starting scans
 #---------------------------------------------
-
 # Resolution mzML files live in a subfolder. Use a dedicated path variable so
 # the global mzml_folder (used by every other figure) is NOT overwritten.
 resolution_folder <- file.path(mzml_folder, "Resolution")
@@ -8001,22 +7953,17 @@ file_info <- data.frame(
 )
 
 # Ensure correct plotting order
-file_info$label <- factor(
-  file_info$label,
-  levels = c("60K", "120K", "240K")
-)
-
+file_info$label <- factor(file_info$label, levels = c("60K", "120K", "240K"))
 
 #---------------------------------------------
-# 2. Function to extract selected mass spectra
+# 2. Function to extract selected scans
 #---------------------------------------------
-
 process_file <- function(file_path, start_scan, label) {
   
   raw_data <- xcmsRaw(file_path)
   mz_range <- c(204.11, 204.13)
   
-  # Keep only 4 mass spectra
+  # ⭐ Keep only 4 scans (remove 5th)
   scan_offsets <- c(0, 2, 4, 6)
   scans <- start_scan + scan_offsets
   
@@ -8025,24 +7972,15 @@ process_file <- function(file_path, start_scan, label) {
     scan_index <- scans[i]
     
     scan_start <- raw_data@scanindex[scan_index] + 1
-    
-    scan_end <- ifelse(
-      scan_index + 1 <= length(raw_data@scanindex),
-      raw_data@scanindex[scan_index + 1],
-      length(raw_data@env$mz)
-    )
+    scan_end <- ifelse(scan_index + 1 <= length(raw_data@scanindex), 
+                      raw_data@scanindex[scan_index + 1], 
+                      length(raw_data@env$mz))
     
     mz_values <- raw_data@env$mz[scan_start:scan_end]
     intensity_values <- raw_data@env$intensity[scan_start:scan_end]
     
-    df <- data.frame(
-      mz = mz_values,
-      intensity = intensity_values
-    ) %>%
-      dplyr::filter(
-        mz >= mz_range[1] &
-          mz <= mz_range[2]
-      )
+    df <- data.frame(mz = mz_values, intensity = intensity_values) %>%
+      dplyr::filter(mz >= mz_range[1] & mz <= mz_range[2])
     
     # Handle empty spectra
     if (nrow(df) == 0) {
@@ -8055,343 +7993,147 @@ process_file <- function(file_path, start_scan, label) {
     df %>%
       dplyr::mutate(
         sample = label,
-        scan = factor(
-          paste0("Mass spectrum ", i),
-          levels = paste0("Mass spectrum ", 1:4)
-        )
+        scan = factor(paste0("Scan ", i), levels = paste0("Scan ", 1:4))
       )
   })
   
   dplyr::bind_rows(spectra_list)
 }
 
-
 #---------------------------------------------
 # 3. Process all files
 #---------------------------------------------
-
 combined_spectra <- purrr::pmap_dfr(
-  list(
-    file_info$file,
-    file_info$start_scan,
-    file_info$label
-  ),
+  list(file_info$file, file_info$start_scan, file_info$label),
   process_file
 )
 
-
 #---------------------------------------------
-# 4. Effective mass resolution
-#    (m/Δm at FWHM)
 #---------------------------------------------
+# 4. Effective mass resolution (m/Δm at FWHM)
+#---------------------------------------------
+target_masses <- c(204.1173, 204.1230)   # glucose-13C6 , acetyl-carnitine
+mid_mz <- mean(target_masses)            # split point between the two peaks
 
-target_masses <- c(
-  204.1173,   # glucose-13C6
-  204.1230    # acetyl-carnitine
-)
-
-mid_mz <- mean(target_masses)
-
-
-# Half-width is measured on the outer flank only
-# (the side facing away from the other peak) and doubled,
-# so partial overlap cannot widen it.
-
+# Half-width is measured on the outer flank only (the side facing away from the
+# other peak) and doubled, so partial overlap cannot widen it.
 get_resolution <- function(df, target_mz) {
   
-  df <- df %>%
-    arrange(mz)
+  df <- df %>% arrange(mz)
   
   if (target_mz < mid_mz) {
-    
-    df <- df %>%
-      dplyr::filter(mz <= mid_mz)
-    
+    df <- df %>% dplyr::filter(mz <= mid_mz)
   } else {
-    
-    df <- df %>%
-      dplyr::filter(mz >= mid_mz)
+    df <- df %>% dplyr::filter(mz >= mid_mz)
   }
   
   apex <- which.max(df$intensity)
-  
   half <- df$intensity[apex] / 2
   
-  # Apex sitting on the edge means the peak
-  # has coalesced with its neighbour
+  # Apex sitting on the edge means the peak has coalesced with its neighbour
   if (apex == 1 || apex == nrow(df)) {
-    
-    return(
-      data.frame(
-        target = target_mz,
-        apex_mz = NA,
-        fwhm = NA,
-        R = NA
-      )
-    )
+    return(data.frame(target = target_mz, apex_mz = NA, fwhm = NA, R = NA))
   }
   
-  flank <- if (target_mz < mid_mz) {
-    
-    df[1:apex, ]
-    
-  } else {
-    
-    df[apex:nrow(df), ]
-  }
+  flank <- if (target_mz < mid_mz) df[1:apex, ] else df[apex:nrow(df), ]
+  mz_half <- approx(flank$intensity, flank$mz, xout = half, ties = min)$y
+  fwhm <- 2 * abs(df$mz[apex] - mz_half)
   
-  mz_half <- approx(
-    flank$intensity,
-    flank$mz,
-    xout = half,
-    ties = min
-  )$y
-  
-  fwhm <- 2 * abs(
-    df$mz[apex] - mz_half
-  )
-  
-  data.frame(
-    target = target_mz,
-    apex_mz = df$mz[apex],
-    fwhm = fwhm,
-    R = df$mz[apex] / fwhm
-  )
+  data.frame(target = target_mz, apex_mz = df$mz[apex],
+             fwhm = fwhm, R = df$mz[apex] / fwhm)
 }
-
 
 resolution_table <- combined_spectra %>%
   group_by(sample, scan) %>%
-  group_modify(
-    ~ purrr::map_dfr(
-      target_masses,
-      get_resolution,
-      df = .x
-    )
-  ) %>%
+  group_modify(~ purrr::map_dfr(target_masses, get_resolution, df = .x)) %>%
   ungroup()
 
-print(
-  resolution_table,
-  n = Inf
-)
+print(resolution_table, n = Inf)
 
-write_csv(
-  resolution_table,
-  here(
-    "Data",
-    "Figure_SI-14_resolution.csv"
-  )
-)
+write_csv(resolution_table, here("Data", "Figure_SI-14_resolution.csv"))
 
-
-#---------------------------------------------
-# 5. Effective resolving power labels
-#---------------------------------------------
-
-# Labels: one per resolved peak,
-# placed beside its dashed line
-
+# Labels: one per resolved peak, placed beside its dashed line
 peak_labels <- resolution_table %>%
-  dplyr::filter(
-    !is.na(R)
-  ) %>%
+  dplyr::filter(!is.na(R)) %>%
+  mutate(peak = ifelse(target < mid_mz, "glucose", "carnitine")) %>%
+  dplyr::filter(!paste(sample, scan, peak) %in%
+                  c("240K Scan 3 glucose", "240K Scan 4 glucose")) %>%
   mutate(
-    peak = ifelse(
-      target < mid_mz,
-      "glucose",
-      "carnitine"
-    )
-  ) %>%
-  dplyr::filter(
-    !paste(
-      sample,
-      scan,
-      peak
-    ) %in%
-      c(
-        "240K Mass spectrum 3 glucose",
-        "240K Mass spectrum 4 glucose"
-      )
-  ) %>%
-  mutate(
-    x = target +
-      ifelse(
-        target < mid_mz,
-        -0.0010,
-        0.0010
-      ),
-    
+    x = target + ifelse(target < mid_mz, -0.0010, 0.0010),
     y = 1.6e6,
-    
-    label = paste0(
-      "R = ",
-      format(
-        round(R, -3),
-        big.mark = ",",
-        trim = TRUE
-      )
-    )
+    label = paste0("R = ", format(round(R, -3), big.mark = ",", trim = TRUE))
   )
 
-
 #---------------------------------------------
-# 6. Plot
+# 5. Plot
 #---------------------------------------------
-
-spectrum_glucose <- ggplot(
-  combined_spectra,
-  aes(
-    x = mz,
-    y = intensity
-  )
-) +
+spectrum_glucose <- ggplot(combined_spectra, aes(x = mz, y = intensity)) +
   
-  # Color by nominal resolving power
-  geom_line(
-    aes(
-      color = sample,
-      group = interaction(
-        sample,
-        scan
-      )
-    ),
-    alpha = 0.7
-  ) +
+  # ⭐ Color by resolution (sample)
+  geom_line(aes(color = sample, group = interaction(sample, scan)), alpha = 0.7) +
   
-  geom_vline(
-    xintercept = target_masses,
-    linetype = "dashed",
-    color = "black"
-  ) +
+  geom_vline(xintercept = target_masses, linetype = "dashed", color = "black") +
   
-  # Effective resolving power beside each peak
+  # ⭐ Effective resolving power beside each peak
   geom_text(
     data = peak_labels,
-    aes(
-      x = x,
-      y = y,
-      label = label
-    ),
+    aes(x = x, y = y, label = label),
     inherit.aes = FALSE,
-    angle = -90,
-    hjust = 0.5,
-    size = 3,
-    color = "black"
+    angle = 90, hjust = 0.5, size = 3, color = "black"
   ) +
   
-  facet_grid(
-    sample ~ scan,
-    scales = "free_x"
-  ) +
+  facet_grid(sample ~ scan, scales = "free_x") +
   
-  coord_cartesian(
-    xlim = c(
-      204.11,
-      204.13
-    ),
-    ylim = c(
-      0,
-      2.5e6
-    )
-  ) +
+  coord_cartesian(xlim = c(204.11, 204.13), ylim = c(0, 2.5e6)) +
   
-  scale_y_continuous(
-    labels = scales::scientific
-  ) +
+  scale_y_continuous(labels = scales::scientific) +
   
   scale_x_continuous(
     name = "Mass to Charge Ratio",
     breaks = target_masses,
-    labels = format(
-      target_masses,
-      digits = 7
-    )
+    labels = format(target_masses, digits = 7)
   ) +
   
-  # Colors for each nominal resolving power
+  # ⭐ Define clear colors for each resolution
   scale_color_manual(
     values = c(
-      "60K" = "#1f78b4",
-      "120K" = "#33a02c",
-      "240K" = "#e31a1c"
+      "60K"  = "#1f78b4",   # blue
+      "120K" = "#33a02c",   # green
+      "240K" = "#e31a1c"    # red
     )
   ) +
   
   labs(
-    y = "Intensity"
+    y = "Intensity",
+    #title = "B"
   ) +
   
-  theme_minimal(
-    base_size = 12
-  ) +
-  
+  theme_minimal(base_size = 12) +
   theme(
-    axis.text.x = element_text(
-      angle = 45,
-      hjust = 1
-    ),
-    
-    legend.position = "none",
-    
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none",   # keep off since faceted
     panel.grid = element_blank(),
-    
-    axis.line = element_line(
-      color = "black"
-    ),
-    
-    axis.ticks = element_line(
-      color = "black"
-    ),
-    
-    strip.text = element_text(
-      size = 10,
-      face = "bold"
-    ),
-    
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black"),
+    strip.text = element_text(size = 10, face = "bold"),
     plot.title.position = "plot",
-    
-    plot.title = element_text(
-      hjust = 0,
-      face = "bold",
-      size = 14
-    )
+    plot.title = element_text(hjust = 0, face = "bold", size = 14)
   )
 
+print(spectrum_glucose)
 
-print(
-  spectrum_glucose
-)
-
-
-#---------------------------------------------
-# 7. Save
-#---------------------------------------------
-
+# Save
 ggsave(
-  filename = file.path(
-    output_dir,
-    "Figure_SI-14.png"
-  ),
+  filename = file.path(output_dir, "Figure_SI-14.png"),
   plot = spectrum_glucose,
-  width = 20,
-  height = 20,
-  units = "cm",
-  dpi = 1000
+  width = 20, height = 20, units = "cm", dpi = 1000
 )
 
 ggsave(
-  filename = file.path(
-    output_dir,
-    "Figure_SI-14.tiff"
-  ),
+  filename = file.path(output_dir, "Figure_SI-14.tiff"),
   plot = spectrum_glucose,
-  width = 20,
-  height = 20,
-  units = "cm",
-  dpi = 1000,
-  device = "tiff",
-  compression = "lzw"
+  width = 20, height = 20, units = "cm",
+  dpi = 1000, device = "tiff", compression = "lzw"
 )
 ```
 
@@ -11354,635 +11096,621 @@ ggsave(
 )
 ```
 
-# Supplementary Tables
-
-## Table SI-1
-
-```{r table-si-1-setup}
-# Create table
-si_table <- tribble(
-  ~Formula,              ~`Compound name`,        ~Polarity, ~Adduct,       ~`Monoisotopic m/z (Da)`, ~`LogP (ChemAxon)`, ~`LogD (pH 5.5, ChemSpider)`, ~`Compound class`,            ~`Concentration (µM)`,
-  "C8H6D6N",             "Indole-d6",              "+",       "[M+H]+",       124.1028,               2.07,              2.44,                         "Indole",                    8.0,
-  "C6H3NO2D10",          "Leucine-d10",            "+",       "[M+H]+",       142.1647,              -1.6,             -1.86,                        "Aliphatic amino acid",      3.0,
-  "C5H4NO4D5",           "Glutamic acid-d5",       "-",       "[M−H]−",       151.0773,              -3.2,             -4.77,                        "Acidic amino acid",        10.0,
-  "C7H6NO3D9",           "Carnitine-d9",           "+",       "[M+H]+",       171.1690,              -4.9,             -3.61,                        "Carnitine",                0.09,
-  "13C6H12O6",           "Glucose-13C6",           "+",       "[M+NH4]+",     204.1173,              -2.9,             -2.21,                        "Sugar",                   13.0,
-  "C11H7N2O2D5",         "Tryptophan-d5",          "+",       "[M+H]+",       210.1285,              -1.1,             -1.06,                        "Aromatic amino acid",     10.0,
-  "C18H1O2D35",          "Stearic acid-d35",       "+",       "[M+NH4]+",     337.5251,               7.15,             7.26,                         "Fatty acid",             200.0,
-  "C24H36O5D4",          "Cholic acid-d4",         "-",       "[M−H]−",       411.3054,               2.48,             1.29,                         "Bile acid",                5.0
-)
-
-# Render table with caption
-kable(
-  si_table,
-  format  = "html",
-  caption = "Table SI-1. Overview of stable isotope-labelled standards used in the PCI experiments."
-) %>%
-  kable_styling(
-    full_width = FALSE,
-    bootstrap_options = c("striped", "hover", "condensed")
-  )
-
-```
-
-## Table SI-2
-
-```{r table-si-2-setup}
-# Create table
-si2_table <- tribble(
-  ~`Processing step`,           ~Parameter,                                   ~Value,
-  "Spectrum selection",         "Total intensity threshold",                  "500",
-  "Spectrum selection",         "S/N threshold (FT)",                          "1.5",
-  "Spectrum selection",         "MS order / polarity",                         "Any",
-  
-  "Feature detection",          "Mass tolerance",                              "3 ppm",
-  "Feature detection",          "Minimum peak intensity",                     "2.5 × 10⁵",
-  "Feature detection",          "Minimum scans per peak",                     "5",
-  "Feature detection",          "Chromatographic S/N threshold",              "3",
-  "Feature detection",          "Maximum peak width",                         "1 min",
-  "Feature detection",          "Gap ratio threshold",                        "0.35",
-  
-  "Isotope handling",           "Elements considered",                        "Br, Cl",
-  "Isotope handling",           "False-positive isotope removal",             "Enabled",
-  
-  "Ion/adduct assignment",      "Adducts considered",                         "[M+H]+, [M−H]−, [M+Na]+, [M+K]+, [M+NH4]+, [M+FA−H]−",
-  "Ion/adduct assignment",      "Base ions",                                  "[M+H]+, [M−H]−",
-  
-  "Feature alignment",          "Mass tolerance",                              "3 ppm",
-  "Feature alignment",          "RT tolerance",                                "0.25 min",
-  "Feature alignment",          "Minimum valley",                              "10%",
-  "Feature alignment",          "Area integration",                            "Most common ion",
-  
-  "Peak quality filtering",     "Peak rating threshold",                      "6.5",
-  "Peak quality filtering",     "Minimum number of files",                    "3",
-  
-  "Gap filling",                "Mass tolerance",                              "5 ppm",
-  "Gap filling",                "S/N threshold",                               "1.5",
-  "Gap filling",                "Minimum scans per peak",                     "3",
-  
-  "Background filtering",       "Max sample/blank ratio",                     "6",
-  
-  "Compound annotation",        "Annotation sources",                         "mzVault, mzCloud, ChemSpider (HMDB), predicted compositions",
-  "Compound annotation",        "Mass tolerance",                              "3 ppm",
-  
-  "Spectral library search",    "mzVault match factor threshold",              "60",
-  "Spectral library search",    "mzVault RT tolerance",                        "0.2 min",
-  "Spectral library search",    "mzCloud precursor tolerance",                "10 ppm",
-  "Spectral library search",    "mzCloud fragment tolerance (FT)",             "10 ppm",
-  
-  "Elemental composition",      "Mass tolerance",                              "4 ppm",
-  "Elemental composition",      "Allowed elements",                            "C, H, N, O, S, P, Br, Cl",
-  "Elemental composition",      "Minimum isotope pattern coverage",            "90%"
-)
-
-# Render table
-kable(
-  si2_table,
-  format  = "html",
-  caption = "Table SI-2. Data-processing parameters used for feature detection, alignment, gap filling, and compound annotation in LC–HRMS data analysis (Thermo Compound Discoverer)."
-) %>%
-  kable_styling(
-    full_width = FALSE,
-    bootstrap_options = c("striped", "hover", "condensed")
-  )
-
-```
-
-## Table SI-3
-
-```{r table-si-3-setup}
-# ---- Table SI-3 ----
-
-# Create table
-literature_table <- tribble(
-  ~Article,                                   ~`Column flowrate (mL/min)`, ~`PCI flowrate (mL/min)`, ~`PCI/Column (%)`, ~Compound,                                                                                         ~`Concentration (µg/mL)`,
-  "(Bodnar-Broniarczyk et al., 2019)",         0.75,                        0.5,                      67,                "Tacrolimus",                                                                                      "0.1",
-  "(González et al., 2022)",                   0.4,                         0.01,                     3,                 "Atenolol, caffeine, diclofenac, lacidipine, metformin, nifedipine, simvastatin",                     "0.025 – 0.125",
-  "(Kamiguchi et al., 2016)",                  0.2,                         0.01,                     5,                 "Hippuric acid and phenylacetylglycine",                                                             "1",
-  "(Stahnke et al., 2009)",                    0.2,                         0.02,                     10,                "140 pesticide standard substances",                                                                 "1",
-  "(Rossmann et al., 2015)",                   0.4,                         0.1,                      25,                "Pharmaceutical standards",                                                                           "1",
-  "(Tisler et al., 2021)",                     0.3,                         0.05,                     17,                "67 compounds: wastewater-relevant pharmaceuticals, pesticides, fungicides, industrial chemicals",    "0.2"
-)
-
-# Render table with caption
-kable(
-  literature_table,
-  format = "html",
-  caption = "Table SI-3. Overview of flow rates, analytes, and analyte concentrations used for PCI experiments in literature."
-) %>%
-  kable_styling(full_width = FALSE)
-
-```
-
 ## Change in Standard Names using Refmet
 
 ```{r}
 # ============================================================
-# RefMet conversion for all names
-# InChIKey cross-check using Excel column "InChI Key"
+# OPTIONAL RefMet name / InChIKey cross-check
 # ============================================================
+# FALSE skips all imports, online requests, and exports in this block.
+# TRUE sends the feature names to the RefMet endpoint used in your original code.
+# This block does not write back to Supplementary Tables.xlsx.
 
-library(here)
-library(readxl)
-library(dplyr)
-library(purrr)
-library(curl)
-library(stringi)
-library(stringr)
-library(tibble)
-library(writexl)
+run_refmet_check <- FALSE
 
-# ============================================================
-# 1. Read names and InChIKeys from Excel
-# ============================================================
+# NULL finds a unique tab labelled Table SI-5 or SI-5, optionally with a title.
+# Alternatively, enter the exact tab name, e.g. "Table SI-5 - Feature List".
+feature_sheet <- NULL
 
-Sup_info <- here("Data", "Supplementary Data.xlsx")
+# NULL uses the existing results_dir, or the project's results/ directory.
+refmet_output_dir <- NULL
 
-DF_all <- readxl::read_excel(
-  Sup_info,
-  sheet = "Feature List"
-) %>%
-  dplyr::select(
-    Name,
-    Excel_InChIKey = `InChI Key`
-  ) %>%
-  dplyr::mutate(
-    Row_ID = dplyr::row_number(),
-    Name = as.character(Name),
-    Excel_InChIKey = as.character(Excel_InChIKey),
-    Excel_InChIKey_clean = Excel_InChIKey %>%
-      stringr::str_trim() %>%
-      stringr::str_to_upper() %>%
-      dplyr::na_if("") %>%
-      dplyr::na_if("-")
+# Protect a previously saved RefMet review workbook by default.
+overwrite_refmet_output <- FALSE
+
+if (isTRUE(run_refmet_check)) {
+
+  # Check dependencies only when this optional step is enabled.
+  required_packages <- c(
+    "here", "readxl", "dplyr", "stringr", "stringi",
+    "tibble", "purrr", "curl", "writexl"
   )
-
-cat("Total rows:", nrow(DF_all), "\n")
-
-# ============================================================
-# 2. Split into small batches
-# ============================================================
-
-batch_size <- 100
-
-DF_all <- DF_all %>%
-  dplyr::mutate(
-    Batch = ceiling(Row_ID / batch_size)
-  )
-
-batches <- split(
-  DF_all,
-  DF_all$Batch
-)
-
-total_batches <- length(batches)
-
-cat("Total batches:", total_batches, "\n")
-
-# ============================================================
-# 3. RefMet endpoint
-# ============================================================
-
-refmet_url <- paste0(
-  "https://www.metabolomicsworkbench.org/",
-  "databases/refmet/name_to_refmet_new_minID.php"
-)
-
-# ============================================================
-# 4. Function to query one batch
-# ============================================================
-
-query_one_batch <- function(batch_df) {
-
-  batch_number <- unique(batch_df$Batch)
-
-  message(
-    "Running batch ",
-    batch_number,
-    " of ",
-    total_batches
-  )
-
-  batch_valid <- batch_df %>%
-    dplyr::filter(
-      !is.na(Name),
-      stringr::str_trim(Name) != ""
+  missing_packages <- required_packages[!vapply(
+    required_packages, requireNamespace, logical(1), quietly = TRUE
+  )]
+  if (length(missing_packages) > 0L) {
+    stop(
+      "Required packages are not installed: ",
+      paste(missing_packages, collapse = ", "),
+      call. = FALSE
     )
+  }
+  suppressPackageStartupMessages(library(dplyr))
 
-  if (nrow(batch_valid) == 0) {
-    return(
-      tibble::tibble(
-        Row_ID = character(),
-        `Input name` = character(),
-        `Standardized name` = character(),
-        Formula = character(),
-        `Exact mass` = character(),
-        `Super class` = character(),
-        `Main class` = character(),
-        `Sub class` = character(),
-        PubChem_CID = character(),
-        ChEBI_ID = character(),
-        HMDB_ID = character(),
-        LM_ID = character(),
-        KEGG_ID = character(),
-        INCHI_KEY = character(),
-        RefMet_ID = character(),
-        Batch = character(),
-        Batch_status = character()
-      )
+  # Preserve the parent workflow's results directory when it is available.
+  if (is.null(refmet_output_dir)) {
+    refmet_output_dir <- if (exists("results_dir", inherits = TRUE)) {
+      get("results_dir", inherits = TRUE)
+    } else {
+      here::here("results")
+    }
+  }
+  if (!is.character(refmet_output_dir) || length(refmet_output_dir) != 1L ||
+      is.na(refmet_output_dir) || !nzchar(refmet_output_dir)) {
+    stop("refmet_output_dir must be one non-empty directory path.", call. = FALSE)
+  }
+  dir.create(refmet_output_dir, recursive = TRUE, showWarnings = FALSE)
+  if (!dir.exists(refmet_output_dir) || file.access(refmet_output_dir, 2L) != 0L) {
+    stop("Output directory is not writable: ", refmet_output_dir, call. = FALSE)
+  }
+
+  output_file <- file.path(refmet_output_dir, "RefMet_name_crosscheck.xlsx")
+  if (file.exists(output_file) && !isTRUE(overwrite_refmet_output)) {
+    stop(
+      "An existing RefMet output has been retained: ", output_file, "\n",
+      "Set overwrite_refmet_output <- TRUE to replace it deliberately.",
+      call. = FALSE
     )
   }
 
-  mets <- stringi::stri_join(
-    batch_valid$Name,
-    collapse = "\n"
+  # ============================================================
+  # 1. Read names and InChIKeys from Excel
+  # ============================================================
+
+  Sup_info <- here::here("Data", "Supplementary Tables.xlsx")
+
+  if (!file.exists(Sup_info)) {
+    stop("Workbook not found: ", Sup_info, call. = FALSE)
+  }
+
+  # Use the table LABEL, not the fifth worksheet position.
+  # An exact sheet name supplied in the settings overrides automatic selection.
+  available_sheets <- readxl::excel_sheets(Sup_info)
+
+  if (is.null(feature_sheet)) {
+    # Normalize dash characters only for matching; read with the original tab name.
+    normalized_sheets <- trimws(gsub(
+      "[\u2010-\u2015\u2212]", "-", available_sheets, perl = TRUE
+    ))
+
+    candidates <- available_sheets[grepl(
+      "^(Table[[:space:]]+)?SI[[:space:]]*-[[:space:]]*0*5($|[[:space:]_:().-])",
+      normalized_sheets,
+      ignore.case = TRUE,
+      perl = TRUE
+    )]
+
+    if (length(candidates) != 1L) {
+      stop(
+        "Could not identify exactly one Table SI-5 worksheet.\n",
+        "Set feature_sheet to the exact Feature List tab name.\n",
+        "Available sheets: ", paste(available_sheets, collapse = "; "),
+        call. = FALSE
+      )
+    }
+    feature_sheet <- candidates[[1]]
+  }
+
+  if (!is.character(feature_sheet) || length(feature_sheet) != 1L ||
+      is.na(feature_sheet) || !(feature_sheet %in% available_sheets)) {
+    stop(
+      "feature_sheet must be an exact worksheet name.\n",
+      "Available sheets: ", paste(available_sheets, collapse = "; "),
+      call. = FALSE
+    )
+  }
+
+  message("Reading Feature List from: ", feature_sheet)
+  feature_input <- readxl::read_excel(Sup_info, sheet = feature_sheet)
+
+  missing_columns <- setdiff(c("Name", "InChI Key"), names(feature_input))
+  if (length(missing_columns) > 0L) {
+    stop(
+      "Required columns missing from ", feature_sheet, ": ",
+      paste(missing_columns, collapse = ", "), ".\n",
+      "Check the column names and header row. This import does not skip title rows.",
+      call. = FALSE
+    )
+  }
+  if (nrow(feature_input) == 0L) {
+    stop("The Feature List worksheet contains no data rows.", call. = FALSE)
+  }
+
+  DF_all <- feature_input %>%
+    dplyr::select(
+      Name,
+      Excel_InChIKey = `InChI Key`
+    ) %>%
+    dplyr::mutate(
+      Row_ID = dplyr::row_number(),
+      Name = as.character(Name),
+      Excel_InChIKey = as.character(Excel_InChIKey),
+      Excel_InChIKey_clean = Excel_InChIKey %>%
+        stringr::str_trim() %>%
+        stringr::str_to_upper() %>%
+        dplyr::na_if("") %>%
+        dplyr::na_if("-")
+    )
+
+  cat("Total rows:", nrow(DF_all), "\n")
+
+  # ============================================================
+  # 2. Split into small batches
+  # ============================================================
+
+  batch_size <- 100
+
+  DF_all <- DF_all %>%
+    dplyr::mutate(
+      Batch = ceiling(Row_ID / batch_size)
+    )
+
+  batches <- split(
+    DF_all,
+    DF_all$Batch
   )
 
-  h <- curl::new_handle()
+  total_batches <- length(batches)
 
-  curl::handle_setform(
-    h,
-    metabolite_name = mets
+  cat("Total batches:", total_batches, "\n")
+
+  # ============================================================
+  # 3. RefMet endpoint
+  # ============================================================
+
+  refmet_url <- paste0(
+    "https://www.metabolomicsworkbench.org/",
+    "databases/refmet/name_to_refmet_new_minID.php"
   )
 
-  result <- tryCatch(
-    {
-      req <- curl::curl_fetch_memory(
-        refmet_url,
-        handle = h
+  # ============================================================
+  # 4. Function to query one batch
+  # ============================================================
+
+  query_one_batch <- function(batch_df) {
+
+    batch_number <- unique(batch_df$Batch)
+
+    message(
+      "Running batch ",
+      batch_number,
+      " of ",
+      total_batches
+    )
+
+    batch_valid <- batch_df %>%
+      dplyr::filter(
+        !is.na(Name),
+        stringr::str_trim(Name) != ""
       )
 
-      response_text <- rawToChar(req$content)
-
-      if (
-        grepl(
-          "Internal error|SQL execution failed|<html|<br",
-          response_text,
-          ignore.case = TRUE
+    if (nrow(batch_valid) == 0) {
+      return(
+        tibble::tibble(
+          Row_ID = character(),
+          `Input name` = character(),
+          `Standardized name` = character(),
+          Formula = character(),
+          `Exact mass` = character(),
+          `Super class` = character(),
+          `Main class` = character(),
+          `Sub class` = character(),
+          PubChem_CID = character(),
+          ChEBI_ID = character(),
+          HMDB_ID = character(),
+          LM_ID = character(),
+          KEGG_ID = character(),
+          INCHI_KEY = character(),
+          RefMet_ID = character(),
+          Batch = character(),
+          Batch_status = character()
         )
-      ) {
-        stop("RefMet server returned an error")
-      }
+      )
+    }
 
-      output <- read.delim(
-        text = response_text,
-        header = TRUE,
-        na.strings = "-",
-        stringsAsFactors = FALSE,
-        quote = "",
-        comment.char = "",
-        check.names = FALSE,
-        fill = TRUE
-      ) %>%
-        tibble::as_tibble() %>%
-        dplyr::mutate(
-          dplyr::across(
-            dplyr::everything(),
-            as.character
+    mets <- stringi::stri_join(
+      batch_valid$Name,
+      collapse = "\n"
+    )
+
+    h <- curl::new_handle()
+
+    curl::handle_setform(
+      h,
+      metabolite_name = mets
+    )
+
+    result <- tryCatch(
+      {
+        req <- curl::curl_fetch_memory(
+          refmet_url,
+          handle = h
+        )
+
+        response_text <- rawToChar(req$content)
+
+        if (
+          grepl(
+            "Internal error|SQL execution failed|<html|<br",
+            response_text,
+            ignore.case = TRUE
           )
-        )
+        ) {
+          stop("RefMet server returned an error")
+        }
 
-      expected_columns <- c(
-        "Input name",
-        "Standardized name",
-        "Formula",
-        "Exact mass",
-        "Super class",
-        "Main class",
-        "Sub class",
-        "PubChem_CID",
-        "ChEBI_ID",
-        "HMDB_ID",
-        "LM_ID",
-        "KEGG_ID",
-        "INCHI_KEY",
-        "RefMet_ID"
-      )
-
-      missing_columns <- setdiff(
-        expected_columns,
-        names(output)
-      )
-
-      for (column_name in missing_columns) {
-        output[[column_name]] <- NA_character_
-      }
-
-      # Remove duplicate uppercase ID columns if returned
-      output <- output %>%
-        dplyr::select(
-          -dplyr::any_of(
-            c(
-              "PUBCHEM_CID",
-              "CHEBI_ID",
-              "REFMET_ID"
+        output <- read.delim(
+          text = response_text,
+          header = TRUE,
+          na.strings = "-",
+          stringsAsFactors = FALSE,
+          quote = "",
+          comment.char = "",
+          check.names = FALSE,
+          fill = TRUE
+        ) %>%
+          tibble::as_tibble() %>%
+          dplyr::mutate(
+            dplyr::across(
+              dplyr::everything(),
+              as.character
             )
           )
+
+        expected_columns <- c(
+          "Input name",
+          "Standardized name",
+          "Formula",
+          "Exact mass",
+          "Super class",
+          "Main class",
+          "Sub class",
+          "PubChem_CID",
+          "ChEBI_ID",
+          "HMDB_ID",
+          "LM_ID",
+          "KEGG_ID",
+          "INCHI_KEY",
+          "RefMet_ID"
         )
 
-      # Match RefMet results back to submitted rows by input name
-      output <- output %>%
-        dplyr::left_join(
-          batch_valid %>%
-            dplyr::select(
-              Row_ID,
-              Name,
-              Batch
-            ) %>%
-            dplyr::mutate(
-              Row_ID = as.character(Row_ID),
-              Batch = as.character(Batch)
-            ),
-          by = c("Input name" = "Name")
-        ) %>%
-        dplyr::mutate(
-          Batch_status = "Success"
+        missing_columns <- setdiff(
+          expected_columns,
+          names(output)
         )
 
-      output
-    },
-    error = function(e) {
+        for (column_name in missing_columns) {
+          output[[column_name]] <- NA_character_
+        }
 
-      warning(
-        "Batch ",
-        batch_number,
-        " failed: ",
-        conditionMessage(e)
-      )
+        # Remove duplicate uppercase ID columns if returned
+        output <- output %>%
+          dplyr::select(
+            -dplyr::any_of(
+              c(
+                "PUBCHEM_CID",
+                "CHEBI_ID",
+                "REFMET_ID"
+              )
+            )
+          )
 
-      batch_valid %>%
-        dplyr::transmute(
-          Row_ID = as.character(Row_ID),
-          `Input name` = as.character(Name),
-          `Standardized name` = NA_character_,
-          Formula = NA_character_,
-          `Exact mass` = NA_character_,
-          `Super class` = NA_character_,
-          `Main class` = NA_character_,
-          `Sub class` = NA_character_,
-          PubChem_CID = NA_character_,
-          ChEBI_ID = NA_character_,
-          HMDB_ID = NA_character_,
-          LM_ID = NA_character_,
-          KEGG_ID = NA_character_,
-          INCHI_KEY = NA_character_,
-          RefMet_ID = NA_character_,
-          Batch = as.character(Batch),
-          Batch_status = "Failed"
+        # Match RefMet results back to submitted rows by input name
+        output <- output %>%
+          dplyr::left_join(
+            batch_valid %>%
+              dplyr::select(
+                Row_ID,
+                Name,
+                Batch
+              ) %>%
+              dplyr::mutate(
+                Row_ID = as.character(Row_ID),
+                Batch = as.character(Batch)
+              ),
+            by = c("Input name" = "Name")
+          ) %>%
+          dplyr::mutate(
+            Batch_status = "Success"
+          )
+
+        output
+      },
+      error = function(e) {
+
+        warning(
+          "Batch ",
+          batch_number,
+          " failed: ",
+          conditionMessage(e)
         )
-    }
+
+        batch_valid %>%
+          dplyr::transmute(
+            Row_ID = as.character(Row_ID),
+            `Input name` = as.character(Name),
+            `Standardized name` = NA_character_,
+            Formula = NA_character_,
+            `Exact mass` = NA_character_,
+            `Super class` = NA_character_,
+            `Main class` = NA_character_,
+            `Sub class` = NA_character_,
+            PubChem_CID = NA_character_,
+            ChEBI_ID = NA_character_,
+            HMDB_ID = NA_character_,
+            LM_ID = NA_character_,
+            KEGG_ID = NA_character_,
+            INCHI_KEY = NA_character_,
+            RefMet_ID = NA_character_,
+            Batch = as.character(Batch),
+            Batch_status = "Failed"
+          )
+      }
+    )
+
+    Sys.sleep(0.2)
+
+    result
+  }
+
+  # ============================================================
+  # 5. Run all batches
+  # ============================================================
+
+  refmet_all <- purrr::map_dfr(
+    batches,
+    query_one_batch
   )
 
-  Sys.sleep(0.2)
+  refmet_all <- refmet_all %>%
+    dplyr::mutate(
+      Row_ID = as.numeric(Row_ID)
+    )
 
-  result
-}
+  # ============================================================
+  # 6. Clean RefMet InChIKeys
+  # ============================================================
 
-# ============================================================
-# 5. Run all batches
-# ============================================================
+  refmet_all <- refmet_all %>%
+    dplyr::mutate(
+      RefMet_InChIKey_clean = INCHI_KEY %>%
+        as.character() %>%
+        stringr::str_trim() %>%
+        stringr::str_to_upper() %>%
+        dplyr::na_if("") %>%
+        dplyr::na_if("-")
+    )
 
-refmet_all <- purrr::map_dfr(
-  batches,
-  query_one_batch
-)
+  # ============================================================
+  # 7. Add Excel values to every RefMet result
+  # ============================================================
 
-refmet_all <- refmet_all %>%
-  dplyr::mutate(
-    Row_ID = as.numeric(Row_ID)
-  )
+  refmet_matches <- refmet_all %>%
+    dplyr::left_join(
+      DF_all %>%
+        dplyr::select(
+          Row_ID,
+          Name,
+          Excel_InChIKey,
+          Excel_InChIKey_clean
+        ),
+      by = "Row_ID"
+    )
 
-# ============================================================
-# 6. Clean RefMet InChIKeys
-# ============================================================
+  # ============================================================
+  # 8. Compare InChIKeys and score matches
+  # ============================================================
 
-refmet_all <- refmet_all %>%
-  dplyr::mutate(
-    RefMet_InChIKey_clean = INCHI_KEY %>%
-      as.character() %>%
-      stringr::str_trim() %>%
-      stringr::str_to_upper() %>%
-      dplyr::na_if("") %>%
-      dplyr::na_if("-")
-  )
+  refmet_matches <- refmet_matches %>%
+    dplyr::mutate(
+      InChIKey_check = dplyr::case_when(
+        Batch_status == "Failed" ~
+          "RefMet request failed",
 
-# ============================================================
-# 7. Add Excel values to every RefMet result
-# ============================================================
+        is.na(Excel_InChIKey_clean) &
+          is.na(RefMet_InChIKey_clean) ~
+          "No InChIKey available",
 
-refmet_matches <- refmet_all %>%
-  dplyr::left_join(
-    DF_all %>%
-      dplyr::select(
-        Row_ID,
-        Name,
-        Excel_InChIKey,
-        Excel_InChIKey_clean
-      ),
-    by = "Row_ID"
-  )
+        is.na(Excel_InChIKey_clean) ~
+          "No Excel InChIKey",
 
-# ============================================================
-# 8. Compare InChIKeys and score matches
-# ============================================================
-
-refmet_matches <- refmet_matches %>%
-  dplyr::mutate(
-    InChIKey_check = dplyr::case_when(
-      Batch_status == "Failed" ~
-        "RefMet request failed",
-
-      is.na(Excel_InChIKey_clean) &
         is.na(RefMet_InChIKey_clean) ~
-        "No InChIKey available",
+          "No RefMet InChIKey",
 
-      is.na(Excel_InChIKey_clean) ~
-        "No Excel InChIKey",
+        Excel_InChIKey_clean ==
+          RefMet_InChIKey_clean ~
+          "Full match",
 
-      is.na(RefMet_InChIKey_clean) ~
-        "No RefMet InChIKey",
+        substr(Excel_InChIKey_clean, 1, 14) ==
+          substr(RefMet_InChIKey_clean, 1, 14) ~
+          "Connectivity match",
 
-      Excel_InChIKey_clean ==
-        RefMet_InChIKey_clean ~
-        "Full match",
+        TRUE ~
+          "Mismatch"
+      ),
 
-      substr(Excel_InChIKey_clean, 1, 14) ==
-        substr(RefMet_InChIKey_clean, 1, 14) ~
-        "Connectivity match",
-
-      TRUE ~
-        "Mismatch"
-    ),
-
-    Match_score = dplyr::case_when(
-      InChIKey_check == "Full match" ~ 1L,
-      InChIKey_check == "Connectivity match" ~ 2L,
-      InChIKey_check == "No Excel InChIKey" ~ 3L,
-      InChIKey_check == "No RefMet InChIKey" ~ 4L,
-      InChIKey_check == "No InChIKey available" ~ 5L,
-      InChIKey_check == "Mismatch" ~ 6L,
-      InChIKey_check == "RefMet request failed" ~ 7L,
-      TRUE ~ 8L
-    )
-  )
-
-# ============================================================
-# 9. Select best RefMet match for each Excel row
-# ============================================================
-
-refmet_best <- refmet_matches %>%
-  dplyr::group_by(Row_ID) %>%
-  dplyr::arrange(
-    Match_score,
-    `Standardized name`,
-    .by_group = TRUE
-  ) %>%
-  dplyr::slice_head(n = 1) %>%
-  dplyr::ungroup()
-
-# ============================================================
-# 10. Remove duplicate ID columns and rename clearly
-# ============================================================
-
-refmet_best <- refmet_best %>%
-  dplyr::select(
-    -dplyr::any_of(
-      c(
-        "PUBCHEM_CID",
-        "CHEBI_ID",
-        "REFMET_ID"
+      Match_score = dplyr::case_when(
+        InChIKey_check == "Full match" ~ 1L,
+        InChIKey_check == "Connectivity match" ~ 2L,
+        InChIKey_check == "No Excel InChIKey" ~ 3L,
+        InChIKey_check == "No RefMet InChIKey" ~ 4L,
+        InChIKey_check == "No InChIKey available" ~ 5L,
+        InChIKey_check == "Mismatch" ~ 6L,
+        InChIKey_check == "RefMet request failed" ~ 7L,
+        TRUE ~ 8L
       )
     )
-  ) %>%
-  dplyr::rename(
-    RefMet_Input_name = `Input name`,
-    RefMet_name = `Standardized name`,
-    RefMet_Formula = Formula,
-    RefMet_Exact_mass = `Exact mass`,
-    RefMet_Super_class = `Super class`,
-    RefMet_Main_class = `Main class`,
-    RefMet_Sub_class = `Sub class`,
-    RefMet_InChIKey = INCHI_KEY,
-    RefMet_PubChem_CID = PubChem_CID,
-    RefMet_ChEBI_ID = ChEBI_ID,
-    RefMet_HMDB_ID = HMDB_ID,
-    RefMet_LipidMaps_ID = LM_ID,
-    RefMet_KEGG_ID = KEGG_ID
+
+  # ============================================================
+  # 9. Select best RefMet match for each Excel row
+  # ============================================================
+
+  refmet_best <- refmet_matches %>%
+    dplyr::group_by(Row_ID) %>%
+    dplyr::arrange(
+      Match_score,
+      `Standardized name`,
+      .by_group = TRUE
+    ) %>%
+    dplyr::slice_head(n = 1) %>%
+    dplyr::ungroup()
+
+  # ============================================================
+  # 10. Remove duplicate ID columns and rename clearly
+  # ============================================================
+
+  refmet_best <- refmet_best %>%
+    dplyr::select(
+      -dplyr::any_of(
+        c(
+          "PUBCHEM_CID",
+          "CHEBI_ID",
+          "REFMET_ID"
+        )
+      )
+    ) %>%
+    dplyr::rename(
+      RefMet_Input_name = `Input name`,
+      RefMet_name = `Standardized name`,
+      RefMet_Formula = Formula,
+      RefMet_Exact_mass = `Exact mass`,
+      RefMet_Super_class = `Super class`,
+      RefMet_Main_class = `Main class`,
+      RefMet_Sub_class = `Sub class`,
+      RefMet_InChIKey = INCHI_KEY,
+      RefMet_PubChem_CID = PubChem_CID,
+      RefMet_ChEBI_ID = ChEBI_ID,
+      RefMet_HMDB_ID = HMDB_ID,
+      RefMet_LipidMaps_ID = LM_ID,
+      RefMet_KEGG_ID = KEGG_ID
+    )
+
+  # RefMet_ID already has the correct name and is kept unchanged
+
+  # ============================================================
+  # 11. Final result in original row order
+  # ============================================================
+
+  result_all <- DF_all %>%
+    dplyr::select(
+      Row_ID,
+      Name,
+      Excel_InChIKey,
+      Batch
+    ) %>%
+    dplyr::left_join(
+      refmet_best %>%
+        dplyr::select(
+          Row_ID,
+          RefMet_Input_name,
+          RefMet_name,
+          RefMet_Formula,
+          RefMet_Exact_mass,
+          RefMet_Super_class,
+          RefMet_Main_class,
+          RefMet_Sub_class,
+          RefMet_InChIKey,
+          RefMet_PubChem_CID,
+          RefMet_ChEBI_ID,
+          RefMet_HMDB_ID,
+          RefMet_LipidMaps_ID,
+          RefMet_KEGG_ID,
+          RefMet_ID,
+          InChIKey_check,
+          Batch_status
+        ),
+      by = "Row_ID"
+    ) %>%
+    dplyr::arrange(Row_ID)
+
+  # ============================================================
+  # 12. Create review tables
+  # ============================================================
+
+  manual_review <- result_all %>%
+    dplyr::filter(
+      InChIKey_check %in% c(
+        "Connectivity match",
+        "Mismatch",
+        "RefMet request failed"
+      )
+    )
+
+  all_multiple_matches <- refmet_matches %>%
+    dplyr::group_by(Row_ID) %>%
+    dplyr::filter(dplyr::n() > 1) %>%
+    dplyr::ungroup() %>%
+    dplyr::arrange(
+      Row_ID,
+      Match_score
+    )
+
+  # ============================================================
+  # 13. Inspect results
+  # ============================================================
+
+  if (interactive()) {
+    View(result_all)
+    View(manual_review)
+    View(all_multiple_matches)
+  }
+
+  print(
+    result_all %>%
+      dplyr::count(
+        Batch_status,
+        sort = TRUE
+      )
   )
 
-# RefMet_ID already has the correct name and is kept unchanged
-
-# ============================================================
-# 11. Final result in original row order
-# ============================================================
-
-result_all <- DF_all %>%
-  dplyr::select(
-    Row_ID,
-    Name,
-    Excel_InChIKey,
-    Batch
-  ) %>%
-  dplyr::left_join(
-    refmet_best %>%
-      dplyr::select(
-        Row_ID,
-        RefMet_Input_name,
-        RefMet_name,
-        RefMet_Formula,
-        RefMet_Exact_mass,
-        RefMet_Super_class,
-        RefMet_Main_class,
-        RefMet_Sub_class,
-        RefMet_InChIKey,
-        RefMet_PubChem_CID,
-        RefMet_ChEBI_ID,
-        RefMet_HMDB_ID,
-        RefMet_LipidMaps_ID,
-        RefMet_KEGG_ID,
-        RefMet_ID,
+  print(
+    result_all %>%
+      dplyr::count(
         InChIKey_check,
-        Batch_status
-      ),
-    by = "Row_ID"
-  ) %>%
-  dplyr::arrange(Row_ID)
-
-# ============================================================
-# 12. Create review tables
-# ============================================================
-
-manual_review <- result_all %>%
-  dplyr::filter(
-    InChIKey_check %in% c(
-      "Connectivity match",
-      "Mismatch",
-      "RefMet request failed"
-    )
+        sort = TRUE
+      )
   )
 
-all_multiple_matches <- refmet_matches %>%
-  dplyr::group_by(Row_ID) %>%
-  dplyr::filter(dplyr::n() > 1) %>%
-  dplyr::ungroup() %>%
-  dplyr::arrange(
-    Row_ID,
-    Match_score
+  cat(
+    "\nRows with multiple RefMet matches:",
+    dplyr::n_distinct(all_multiple_matches$Row_ID),
+    "\n"
   )
 
-# ============================================================
-# 13. Inspect results
-# ============================================================
+  # ============================================================
+  # 14. Save output
+  # ============================================================
 
-View(result_all)
-View(manual_review)
-View(all_multiple_matches)
+  # output_file was checked before starting the RefMet requests.
 
-print(
-  result_all %>%
-    dplyr::count(
-      Batch_status,
-      sort = TRUE
-    )
-)
+  writexl::write_xlsx(
+    list(
+      Best_RefMet_match = result_all,
+      Manual_review = manual_review,
+      All_multiple_matches = all_multiple_matches
+    ),
+    output_file
+  )
 
-print(
-  result_all %>%
-    dplyr::count(
-      InChIKey_check,
-      sort = TRUE
-    )
-)
+  cat(
+    "\nSaved to:\n",
+    output_file,
+    "\n"
+  )
 
-cat(
-  "\nRows with multiple RefMet matches:",
-  dplyr::n_distinct(all_multiple_matches$Row_ID),
-  "\n"
-)
-
-# ============================================================
-# 14. Save output
-# ============================================================
-
-output_file <- file.path(
-  results_dir,
-  "RefMet_name_crosscheck.xlsx"
-)
-
-writexl::write_xlsx(
-  list(
-    Best_RefMet_match = result_all,
-    Manual_review = manual_review,
-    All_multiple_matches = all_multiple_matches
-  ),
-  output_file
-)
-
-cat(
-  "\nSaved to:\n",
-  output_file,
-  "\n"
-)
+} else {
+  message("RefMet cross-check skipped (run_refmet_check = FALSE).")
+}
 ```
 
 # Reproducibility record
