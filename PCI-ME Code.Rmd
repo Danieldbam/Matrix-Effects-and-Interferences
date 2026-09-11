@@ -13,7 +13,6 @@ This document reproduces every figure and supplementary item in the manuscript. 
 
 1.  **Main Figures** (Figure 1-7)
 2.  **Supplementary Figures** (Figure SI-1 - SI-20)
-3.  **Supplementary Tables** (Table SI-1 - SI-4)
 
 Each figure follows the same workflow: **extract the data -\> make the plot(s) -\> combine panels if needed -\> export as PNG and TIFF**.
 
@@ -59,11 +58,6 @@ Each figure follows the same workflow: **extract the data -\> make the plot(s) -
     -   Figure SI-18. RSD change versus retention time
     -   Figure SI-19. Improved and worsened features
     -   Figure SI-20. Individual worsened features
--   **Supplementary Tables**
-    -   Table SI-1
-    -   Table SI-2
-    -   Table SI-3
-    -   Table SI-4
 
 ### Reproducibility
 
@@ -1436,9 +1430,9 @@ ggsave(
 
 ```{r homologue-dataprep}
 # ---- Data prep: build merged_df used by Figure 3 and the negative-mode summary ----
-Sup_info <- here("Data","Supplementary Data.xlsx")
+Sup_info <- here("Data","Supplementary Tables.xlsx")
 
-data3<- read_excel(Sup_info, sheet = "Feature List")
+data3<- data3 <- read_excel(Sup_info, sheet = "Table SI-5")
 
 peak_table1 <- data3 %>%
   select(id, mz, rt) %>%  
@@ -3711,10 +3705,10 @@ feat.intensity.threshold  <- 1e4 #(previous 1e6)
 signal.factor <- 3
 
 
-Sup_info <- here("Data","Supplementary Data.xlsx")
-data4<- read_excel(Sup_info, sheet = "Peak Areas")
+Sup_info <- here("Data","Supplementary Tables.xlsx")
+data4 <- read_excel(Sup_info, sheet = "Table SI-6")
 
-data_meta <- read_excel(Sup_info, sheet = "Feature List") %>%
+data_meta <- read_excel(Sup_info, sheet = "Table SI-5") %>%
   mutate(
     Charge = case_when(
       Polarity == "POS" ~ 1,
@@ -4373,7 +4367,7 @@ correction_summary_table <- function(selected_type) {
       paired_rsd$Uncorrected,
       paired_rsd$Corrected,
       paired = TRUE,
-      alternative = "greater"
+      alternative = "two.sided"
     )
 
   } else {
@@ -4382,7 +4376,7 @@ correction_summary_table <- function(selected_type) {
       paired_rsd$Uncorrected,
       paired_rsd$Corrected,
       paired = TRUE,
-      alternative = "greater",
+      alternative = "two.sided",
       exact = FALSE
     )
   }
@@ -4551,35 +4545,35 @@ val_histo <- ggplot(plot_rsd_hist, aes(x = RSD, fill = Group)) +
     linewidth = 1
   ) +
   annotate(
-    "text",
-    x = Inf,
+  "text",
+  x = Inf,
   y = Inf,
   hjust = 1.0,
   vjust = 1.5,
-    label = paste0(
-      "Median uncorrected RSD = ",
-      sprintf("%.1f", median_rsd$Uncorrected),
-      "%"
-    ),
-    color = "#e31a1c",
-    size = 4,
-    fontface = "bold"
-  ) +
-  annotate(
-    "text",
-    x = Inf,
+  label = paste0(
+    "Median RSD, uncorrected = ",
+    sprintf("%.1f", median_rsd$Uncorrected),
+    "%"
+  ),
+  color = "#e31a1c",
+  size = 4,
+  fontface = "bold"
+) +
+annotate(
+  "text",
+  x = Inf,
   y = Inf,
   hjust = 1.0,
   vjust = 3,
-    label = paste0(
-      "Median corrected RSD = ",
-      sprintf("%.1f", median_rsd$Corrected),
-      "%"
-    ),
-    color = "#1f78b4",
-    size = 4,
-    fontface = "bold"
-  ) +
+  label = paste0(
+    "Median RSD, corrected = ",
+    sprintf("%.1f", median_rsd$Corrected),
+    "%"
+  ),
+  color = "#1f78b4",
+  size = 4,
+  fontface = "bold"
+) +
   annotate(
     "text",
     x = Inf,
@@ -4654,8 +4648,13 @@ rsd_delta_rt <- rsd_delta_rt %>%
 n_improved <- sum(rsd_delta_rt$Category == "Improved", na.rm = TRUE)
 n_worsened <- sum(rsd_delta_rt$Category == "Worsened", na.rm = TRUE)
 
-label_improved <- paste0("RSD ≥ ", RSD_CUTOFF, "%  (n = ", n_improved, ")")
-label_worsened <- paste0("RSD ≤ -", RSD_CUTOFF, "%  (n = ", n_worsened, ")")
+label_improved <- paste0(
+  "ΔRSD ≥ ", RSD_CUTOFF, "%  (n = ", n_improved, ")"
+)
+
+label_worsened <- paste0(
+  "ΔRSD ≤ -", RSD_CUTOFF, "%  (n = ", n_worsened, ")"
+)
 
 # ============================================================
 # 6️⃣ RT chromatogram improvement plot Panel C
@@ -4980,7 +4979,7 @@ Sup_info <- here("Data", "Supplementary Data.xlsx")
 
 data4 <- read_excel(Sup_info, sheet = "Peak Areas")
 
-data_meta <- read_excel(Sup_info, sheet = "Feature List") %>%
+data_meta <- read_excel(Sup_info, sheet = "Table SI-5") %>%
   mutate(
     Charge = case_when(
       Polarity == "POS" ~ 1,
@@ -5570,70 +5569,6 @@ plot_df_neg %>%
     .groups = "drop"
   )
 
-
-# # ============================================================
-# # Export MF correction results to Supplementary Data
-# # ============================================================
-# Sup_info <- here("Data", "Supplementary Data.xlsx")
-# # Feature m/z and retention time, both polarities
-# feature_info <- bind_rows(
-#   rsd_per_wash15     %>% mutate(Polarity = "POS"),
-#   rsd_per_wash15_neg %>% mutate(Polarity = "NEG")
-# ) %>%
-#   distinct(Polarity, Feature, Name, mz, rt)
-# # --- Sheet 1: one row per feature and correction strategy, with the RSDs ---
-# mf_correction_summary <- bind_rows(
-#   plot_df     %>% mutate(Polarity = "POS"),
-#   plot_df_neg %>% mutate(Polarity = "NEG")
-# ) %>%
-#   left_join(feature_info, by = c("Polarity", "Feature")) %>%
-#   transmute(
-#     Polarity,
-#     Feature,
-#     Name,
-#     mz,
-#     RT_min                     = rt,
-#     Correction_strategy        = as.character(Type),
-#     Applied_correction         = Chosen,
-#     Applied_PCI_SILS           = Chosen_PCI,
-#     RSD_training_uncorrected   = train_rsd_uncorrected,
-#     RSD_training_corrected     = Best_train_RSD,
-#     RSD_validation_uncorrected = RSD_uncorrected,
-#     RSD_validation_corrected   = RSD_corrected,
-#     RSD_validation_selected    = RSD_val
-#   ) %>%
-#   arrange(Polarity, Feature, Correction_strategy)
-# # --- Sheet 2: uncorrected and corrected peak areas per replicate ---
-# mf_correction_areas <- bind_rows(
-#   result_long     %>% mutate(Polarity = "POS"),
-#   result_long_neg %>% mutate(Polarity = "NEG")
-# ) %>%
-#   select(
-#     Polarity, Feature, Name, Wash, Replicate,
-#     PCI = Compound,
-#     mean_MF, median_MF, min_MF,
-#     Correction_Type, Corrected_Value
-#   ) %>%
-#   pivot_wider(
-#     names_from  = Correction_Type,
-#     values_from = Corrected_Value
-#   ) %>%
-#   left_join(
-#     feature_info %>% select(Polarity, Feature, mz, rt),
-#     by = c("Polarity", "Feature")
-#   ) %>%
-#   arrange(Polarity, Feature, Wash, Replicate, PCI)
-# # --- Write back, keeping every existing sheet ---
-# sheet_names <- readxl::excel_sheets(Sup_info)
-# sup_data <- lapply(sheet_names, function(s) read_excel(Sup_info, sheet = s))
-# names(sup_data) <- sheet_names
-# sup_data[["MF Correction"]]       <- mf_correction_summary
-# sup_data[["MF Correction Areas"]] <- mf_correction_areas
-# writexl::write_xlsx(sup_data, Sup_info)
-# cat("MF Correction:", nrow(mf_correction_summary), "rows\n")
-# cat("MF Correction Areas:", nrow(mf_correction_areas), "rows\n")
-# 
-
 ```
 
 ## Plotting negative-mode summary
@@ -5857,7 +5792,7 @@ val_histo_neg <- ggplot(plot_rsd_hist_neg, aes(x = RSD, fill = Group)) +
   hjust = 1.0,
   vjust = 1.5,
   label = paste0(
-    "Median uncorrected RSD = ",
+    "Median RSD, uncorrected = ",
     sprintf("%.1f", median_rsd_neg$Uncorrected),
     "%"
   ),
@@ -5872,7 +5807,7 @@ annotate(
   hjust = 1.0,
   vjust = 3.0,
   label = paste0(
-    "Median corrected RSD = ",
+    "Median RSD, corrected = ",
     sprintf("%.1f", median_rsd_neg$Corrected),
     "%"
   ),
@@ -5948,11 +5883,31 @@ rsd_delta_rt_neg <- rsd_delta_rt_neg %>%
     )
   )
 
-n_improved_neg <- sum(rsd_delta_rt_neg$Category == "Improved", na.rm = TRUE)
-n_worsened_neg <- sum(rsd_delta_rt_neg$Category == "Worsened", na.rm = TRUE)
+n_improved_neg <- sum(
+  rsd_delta_rt_neg$Category == "Improved",
+  na.rm = TRUE
+)
 
-label_improved_neg <- paste0("RSD ≥ ", RSD_CUTOFF, "%  (n = ", n_improved_neg, ")")
-label_worsened_neg <- paste0("RSD ≤ -", RSD_CUTOFF, "%  (n = ", n_worsened_neg, ")")
+n_worsened_neg <- sum(
+  rsd_delta_rt_neg$Category == "Worsened",
+  na.rm = TRUE
+)
+
+label_improved_neg <- paste0(
+  "\u0394RSD \u2265 ",
+  RSD_CUTOFF,
+  "%  (n = ",
+  n_improved_neg,
+  ")"
+)
+
+label_worsened_neg <- paste0(
+  "\u0394RSD \u2264 -",
+  RSD_CUTOFF,
+  "%  (n = ",
+  n_worsened_neg,
+  ")"
+)
 
 # ============================================================
 # 6️⃣ RT chromatogram improvement plot Panel B
@@ -7984,7 +7939,6 @@ ggsave(
 #---------------------------------------------
 # 1. Define mzML files + labels + starting scans
 #---------------------------------------------
-
 # Resolution mzML files live in a subfolder. Use a dedicated path variable so
 # the global mzml_folder (used by every other figure) is NOT overwritten.
 resolution_folder <- file.path(mzml_folder, "Resolution")
@@ -8001,22 +7955,17 @@ file_info <- data.frame(
 )
 
 # Ensure correct plotting order
-file_info$label <- factor(
-  file_info$label,
-  levels = c("60K", "120K", "240K")
-)
-
+file_info$label <- factor(file_info$label, levels = c("60K", "120K", "240K"))
 
 #---------------------------------------------
-# 2. Function to extract selected mass spectra
+# 2. Function to extract selected scans
 #---------------------------------------------
-
 process_file <- function(file_path, start_scan, label) {
   
   raw_data <- xcmsRaw(file_path)
   mz_range <- c(204.11, 204.13)
   
-  # Keep only 4 mass spectra
+  # ⭐ Keep only 4 scans (remove 5th)
   scan_offsets <- c(0, 2, 4, 6)
   scans <- start_scan + scan_offsets
   
@@ -8025,24 +7974,15 @@ process_file <- function(file_path, start_scan, label) {
     scan_index <- scans[i]
     
     scan_start <- raw_data@scanindex[scan_index] + 1
-    
-    scan_end <- ifelse(
-      scan_index + 1 <= length(raw_data@scanindex),
-      raw_data@scanindex[scan_index + 1],
-      length(raw_data@env$mz)
-    )
+    scan_end <- ifelse(scan_index + 1 <= length(raw_data@scanindex), 
+                      raw_data@scanindex[scan_index + 1], 
+                      length(raw_data@env$mz))
     
     mz_values <- raw_data@env$mz[scan_start:scan_end]
     intensity_values <- raw_data@env$intensity[scan_start:scan_end]
     
-    df <- data.frame(
-      mz = mz_values,
-      intensity = intensity_values
-    ) %>%
-      dplyr::filter(
-        mz >= mz_range[1] &
-          mz <= mz_range[2]
-      )
+    df <- data.frame(mz = mz_values, intensity = intensity_values) %>%
+      dplyr::filter(mz >= mz_range[1] & mz <= mz_range[2])
     
     # Handle empty spectra
     if (nrow(df) == 0) {
@@ -8055,343 +7995,147 @@ process_file <- function(file_path, start_scan, label) {
     df %>%
       dplyr::mutate(
         sample = label,
-        scan = factor(
-          paste0("Mass spectrum ", i),
-          levels = paste0("Mass spectrum ", 1:4)
-        )
+        scan = factor(paste0("Scan ", i), levels = paste0("Scan ", 1:4))
       )
   })
   
   dplyr::bind_rows(spectra_list)
 }
 
-
 #---------------------------------------------
 # 3. Process all files
 #---------------------------------------------
-
 combined_spectra <- purrr::pmap_dfr(
-  list(
-    file_info$file,
-    file_info$start_scan,
-    file_info$label
-  ),
+  list(file_info$file, file_info$start_scan, file_info$label),
   process_file
 )
 
-
 #---------------------------------------------
-# 4. Effective mass resolution
-#    (m/Δm at FWHM)
 #---------------------------------------------
+# 4. Effective mass resolution (m/Δm at FWHM)
+#---------------------------------------------
+target_masses <- c(204.1173, 204.1230)   # glucose-13C6 , acetyl-carnitine
+mid_mz <- mean(target_masses)            # split point between the two peaks
 
-target_masses <- c(
-  204.1173,   # glucose-13C6
-  204.1230    # acetyl-carnitine
-)
-
-mid_mz <- mean(target_masses)
-
-
-# Half-width is measured on the outer flank only
-# (the side facing away from the other peak) and doubled,
-# so partial overlap cannot widen it.
-
+# Half-width is measured on the outer flank only (the side facing away from the
+# other peak) and doubled, so partial overlap cannot widen it.
 get_resolution <- function(df, target_mz) {
   
-  df <- df %>%
-    arrange(mz)
+  df <- df %>% arrange(mz)
   
   if (target_mz < mid_mz) {
-    
-    df <- df %>%
-      dplyr::filter(mz <= mid_mz)
-    
+    df <- df %>% dplyr::filter(mz <= mid_mz)
   } else {
-    
-    df <- df %>%
-      dplyr::filter(mz >= mid_mz)
+    df <- df %>% dplyr::filter(mz >= mid_mz)
   }
   
   apex <- which.max(df$intensity)
-  
   half <- df$intensity[apex] / 2
   
-  # Apex sitting on the edge means the peak
-  # has coalesced with its neighbour
+  # Apex sitting on the edge means the peak has coalesced with its neighbour
   if (apex == 1 || apex == nrow(df)) {
-    
-    return(
-      data.frame(
-        target = target_mz,
-        apex_mz = NA,
-        fwhm = NA,
-        R = NA
-      )
-    )
+    return(data.frame(target = target_mz, apex_mz = NA, fwhm = NA, R = NA))
   }
   
-  flank <- if (target_mz < mid_mz) {
-    
-    df[1:apex, ]
-    
-  } else {
-    
-    df[apex:nrow(df), ]
-  }
+  flank <- if (target_mz < mid_mz) df[1:apex, ] else df[apex:nrow(df), ]
+  mz_half <- approx(flank$intensity, flank$mz, xout = half, ties = min)$y
+  fwhm <- 2 * abs(df$mz[apex] - mz_half)
   
-  mz_half <- approx(
-    flank$intensity,
-    flank$mz,
-    xout = half,
-    ties = min
-  )$y
-  
-  fwhm <- 2 * abs(
-    df$mz[apex] - mz_half
-  )
-  
-  data.frame(
-    target = target_mz,
-    apex_mz = df$mz[apex],
-    fwhm = fwhm,
-    R = df$mz[apex] / fwhm
-  )
+  data.frame(target = target_mz, apex_mz = df$mz[apex],
+             fwhm = fwhm, R = df$mz[apex] / fwhm)
 }
-
 
 resolution_table <- combined_spectra %>%
   group_by(sample, scan) %>%
-  group_modify(
-    ~ purrr::map_dfr(
-      target_masses,
-      get_resolution,
-      df = .x
-    )
-  ) %>%
+  group_modify(~ purrr::map_dfr(target_masses, get_resolution, df = .x)) %>%
   ungroup()
 
-print(
-  resolution_table,
-  n = Inf
-)
+print(resolution_table, n = Inf)
 
-write_csv(
-  resolution_table,
-  here(
-    "Data",
-    "Figure_SI-14_resolution.csv"
-  )
-)
+write_csv(resolution_table, here("Data", "Figure_SI-14_resolution.csv"))
 
-
-#---------------------------------------------
-# 5. Effective resolving power labels
-#---------------------------------------------
-
-# Labels: one per resolved peak,
-# placed beside its dashed line
-
+# Labels: one per resolved peak, placed beside its dashed line
 peak_labels <- resolution_table %>%
-  dplyr::filter(
-    !is.na(R)
-  ) %>%
+  dplyr::filter(!is.na(R)) %>%
+  mutate(peak = ifelse(target < mid_mz, "glucose", "carnitine")) %>%
+  dplyr::filter(!paste(sample, scan, peak) %in%
+                  c("240K Scan 3 glucose", "240K Scan 4 glucose")) %>%
   mutate(
-    peak = ifelse(
-      target < mid_mz,
-      "glucose",
-      "carnitine"
-    )
-  ) %>%
-  dplyr::filter(
-    !paste(
-      sample,
-      scan,
-      peak
-    ) %in%
-      c(
-        "240K Mass spectrum 3 glucose",
-        "240K Mass spectrum 4 glucose"
-      )
-  ) %>%
-  mutate(
-    x = target +
-      ifelse(
-        target < mid_mz,
-        -0.0010,
-        0.0010
-      ),
-    
+    x = target + ifelse(target < mid_mz, -0.0010, 0.0010),
     y = 1.6e6,
-    
-    label = paste0(
-      "R = ",
-      format(
-        round(R, -3),
-        big.mark = ",",
-        trim = TRUE
-      )
-    )
+    label = paste0("R = ", format(round(R, -3), big.mark = ",", trim = TRUE))
   )
 
-
 #---------------------------------------------
-# 6. Plot
+# 5. Plot
 #---------------------------------------------
-
-spectrum_glucose <- ggplot(
-  combined_spectra,
-  aes(
-    x = mz,
-    y = intensity
-  )
-) +
+spectrum_glucose <- ggplot(combined_spectra, aes(x = mz, y = intensity)) +
   
-  # Color by nominal resolving power
-  geom_line(
-    aes(
-      color = sample,
-      group = interaction(
-        sample,
-        scan
-      )
-    ),
-    alpha = 0.7
-  ) +
+  # ⭐ Color by resolution (sample)
+  geom_line(aes(color = sample, group = interaction(sample, scan)), alpha = 0.7) +
   
-  geom_vline(
-    xintercept = target_masses,
-    linetype = "dashed",
-    color = "black"
-  ) +
+  geom_vline(xintercept = target_masses, linetype = "dashed", color = "black") +
   
-  # Effective resolving power beside each peak
+  # ⭐ Effective resolving power beside each peak
   geom_text(
     data = peak_labels,
-    aes(
-      x = x,
-      y = y,
-      label = label
-    ),
+    aes(x = x, y = y, label = label),
     inherit.aes = FALSE,
-    angle = -90,
-    hjust = 0.5,
-    size = 3,
-    color = "black"
+    angle = 90, hjust = 0.5, size = 3, color = "black"
   ) +
   
-  facet_grid(
-    sample ~ scan,
-    scales = "free_x"
-  ) +
+  facet_grid(sample ~ scan, scales = "free_x") +
   
-  coord_cartesian(
-    xlim = c(
-      204.11,
-      204.13
-    ),
-    ylim = c(
-      0,
-      2.5e6
-    )
-  ) +
+  coord_cartesian(xlim = c(204.11, 204.13), ylim = c(0, 2.5e6)) +
   
-  scale_y_continuous(
-    labels = scales::scientific
-  ) +
+  scale_y_continuous(labels = scales::scientific) +
   
   scale_x_continuous(
     name = "Mass to Charge Ratio",
     breaks = target_masses,
-    labels = format(
-      target_masses,
-      digits = 7
-    )
+    labels = format(target_masses, digits = 7)
   ) +
   
-  # Colors for each nominal resolving power
+  # ⭐ Define clear colors for each resolution
   scale_color_manual(
     values = c(
-      "60K" = "#1f78b4",
-      "120K" = "#33a02c",
-      "240K" = "#e31a1c"
+      "60K"  = "#1f78b4",   # blue
+      "120K" = "#33a02c",   # green
+      "240K" = "#e31a1c"    # red
     )
   ) +
   
   labs(
-    y = "Intensity"
+    y = "Intensity",
+    #title = "B"
   ) +
   
-  theme_minimal(
-    base_size = 12
-  ) +
-  
+  theme_minimal(base_size = 12) +
   theme(
-    axis.text.x = element_text(
-      angle = 45,
-      hjust = 1
-    ),
-    
-    legend.position = "none",
-    
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none",   # keep off since faceted
     panel.grid = element_blank(),
-    
-    axis.line = element_line(
-      color = "black"
-    ),
-    
-    axis.ticks = element_line(
-      color = "black"
-    ),
-    
-    strip.text = element_text(
-      size = 10,
-      face = "bold"
-    ),
-    
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black"),
+    strip.text = element_text(size = 10, face = "bold"),
     plot.title.position = "plot",
-    
-    plot.title = element_text(
-      hjust = 0,
-      face = "bold",
-      size = 14
-    )
+    plot.title = element_text(hjust = 0, face = "bold", size = 14)
   )
 
+print(spectrum_glucose)
 
-print(
-  spectrum_glucose
-)
-
-
-#---------------------------------------------
-# 7. Save
-#---------------------------------------------
-
+# Save
 ggsave(
-  filename = file.path(
-    output_dir,
-    "Figure_SI-14.png"
-  ),
+  filename = file.path(output_dir, "Figure_SI-14.png"),
   plot = spectrum_glucose,
-  width = 20,
-  height = 20,
-  units = "cm",
-  dpi = 1000
+  width = 20, height = 20, units = "cm", dpi = 1000
 )
 
 ggsave(
-  filename = file.path(
-    output_dir,
-    "Figure_SI-14.tiff"
-  ),
+  filename = file.path(output_dir, "Figure_SI-14.tiff"),
   plot = spectrum_glucose,
-  width = 20,
-  height = 20,
-  units = "cm",
-  dpi = 1000,
-  device = "tiff",
-  compression = "lzw"
+  width = 20, height = 20, units = "cm",
+  dpi = 1000, device = "tiff", compression = "lzw"
 )
 ```
 
@@ -11352,126 +11096,6 @@ ggsave(
   device = "tiff",
   compression = "lzw"
 )
-```
-
-# Supplementary Tables
-
-## Table SI-1
-
-```{r table-si-1-setup}
-# Create table
-si_table <- tribble(
-  ~Formula,              ~`Compound name`,        ~Polarity, ~Adduct,       ~`Monoisotopic m/z (Da)`, ~`LogP (ChemAxon)`, ~`LogD (pH 5.5, ChemSpider)`, ~`Compound class`,            ~`Concentration (µM)`,
-  "C8H6D6N",             "Indole-d6",              "+",       "[M+H]+",       124.1028,               2.07,              2.44,                         "Indole",                    8.0,
-  "C6H3NO2D10",          "Leucine-d10",            "+",       "[M+H]+",       142.1647,              -1.6,             -1.86,                        "Aliphatic amino acid",      3.0,
-  "C5H4NO4D5",           "Glutamic acid-d5",       "-",       "[M−H]−",       151.0773,              -3.2,             -4.77,                        "Acidic amino acid",        10.0,
-  "C7H6NO3D9",           "Carnitine-d9",           "+",       "[M+H]+",       171.1690,              -4.9,             -3.61,                        "Carnitine",                0.09,
-  "13C6H12O6",           "Glucose-13C6",           "+",       "[M+NH4]+",     204.1173,              -2.9,             -2.21,                        "Sugar",                   13.0,
-  "C11H7N2O2D5",         "Tryptophan-d5",          "+",       "[M+H]+",       210.1285,              -1.1,             -1.06,                        "Aromatic amino acid",     10.0,
-  "C18H1O2D35",          "Stearic acid-d35",       "+",       "[M+NH4]+",     337.5251,               7.15,             7.26,                         "Fatty acid",             200.0,
-  "C24H36O5D4",          "Cholic acid-d4",         "-",       "[M−H]−",       411.3054,               2.48,             1.29,                         "Bile acid",                5.0
-)
-
-# Render table with caption
-kable(
-  si_table,
-  format  = "html",
-  caption = "Table SI-1. Overview of stable isotope-labelled standards used in the PCI experiments."
-) %>%
-  kable_styling(
-    full_width = FALSE,
-    bootstrap_options = c("striped", "hover", "condensed")
-  )
-
-```
-
-## Table SI-2
-
-```{r table-si-2-setup}
-# Create table
-si2_table <- tribble(
-  ~`Processing step`,           ~Parameter,                                   ~Value,
-  "Spectrum selection",         "Total intensity threshold",                  "500",
-  "Spectrum selection",         "S/N threshold (FT)",                          "1.5",
-  "Spectrum selection",         "MS order / polarity",                         "Any",
-  
-  "Feature detection",          "Mass tolerance",                              "3 ppm",
-  "Feature detection",          "Minimum peak intensity",                     "2.5 × 10⁵",
-  "Feature detection",          "Minimum scans per peak",                     "5",
-  "Feature detection",          "Chromatographic S/N threshold",              "3",
-  "Feature detection",          "Maximum peak width",                         "1 min",
-  "Feature detection",          "Gap ratio threshold",                        "0.35",
-  
-  "Isotope handling",           "Elements considered",                        "Br, Cl",
-  "Isotope handling",           "False-positive isotope removal",             "Enabled",
-  
-  "Ion/adduct assignment",      "Adducts considered",                         "[M+H]+, [M−H]−, [M+Na]+, [M+K]+, [M+NH4]+, [M+FA−H]−",
-  "Ion/adduct assignment",      "Base ions",                                  "[M+H]+, [M−H]−",
-  
-  "Feature alignment",          "Mass tolerance",                              "3 ppm",
-  "Feature alignment",          "RT tolerance",                                "0.25 min",
-  "Feature alignment",          "Minimum valley",                              "10%",
-  "Feature alignment",          "Area integration",                            "Most common ion",
-  
-  "Peak quality filtering",     "Peak rating threshold",                      "6.5",
-  "Peak quality filtering",     "Minimum number of files",                    "3",
-  
-  "Gap filling",                "Mass tolerance",                              "5 ppm",
-  "Gap filling",                "S/N threshold",                               "1.5",
-  "Gap filling",                "Minimum scans per peak",                     "3",
-  
-  "Background filtering",       "Max sample/blank ratio",                     "6",
-  
-  "Compound annotation",        "Annotation sources",                         "mzVault, mzCloud, ChemSpider (HMDB), predicted compositions",
-  "Compound annotation",        "Mass tolerance",                              "3 ppm",
-  
-  "Spectral library search",    "mzVault match factor threshold",              "60",
-  "Spectral library search",    "mzVault RT tolerance",                        "0.2 min",
-  "Spectral library search",    "mzCloud precursor tolerance",                "10 ppm",
-  "Spectral library search",    "mzCloud fragment tolerance (FT)",             "10 ppm",
-  
-  "Elemental composition",      "Mass tolerance",                              "4 ppm",
-  "Elemental composition",      "Allowed elements",                            "C, H, N, O, S, P, Br, Cl",
-  "Elemental composition",      "Minimum isotope pattern coverage",            "90%"
-)
-
-# Render table
-kable(
-  si2_table,
-  format  = "html",
-  caption = "Table SI-2. Data-processing parameters used for feature detection, alignment, gap filling, and compound annotation in LC–HRMS data analysis (Thermo Compound Discoverer)."
-) %>%
-  kable_styling(
-    full_width = FALSE,
-    bootstrap_options = c("striped", "hover", "condensed")
-  )
-
-```
-
-## Table SI-3
-
-```{r table-si-3-setup}
-# ---- Table SI-3 ----
-
-# Create table
-literature_table <- tribble(
-  ~Article,                                   ~`Column flowrate (mL/min)`, ~`PCI flowrate (mL/min)`, ~`PCI/Column (%)`, ~Compound,                                                                                         ~`Concentration (µg/mL)`,
-  "(Bodnar-Broniarczyk et al., 2019)",         0.75,                        0.5,                      67,                "Tacrolimus",                                                                                      "0.1",
-  "(González et al., 2022)",                   0.4,                         0.01,                     3,                 "Atenolol, caffeine, diclofenac, lacidipine, metformin, nifedipine, simvastatin",                     "0.025 – 0.125",
-  "(Kamiguchi et al., 2016)",                  0.2,                         0.01,                     5,                 "Hippuric acid and phenylacetylglycine",                                                             "1",
-  "(Stahnke et al., 2009)",                    0.2,                         0.02,                     10,                "140 pesticide standard substances",                                                                 "1",
-  "(Rossmann et al., 2015)",                   0.4,                         0.1,                      25,                "Pharmaceutical standards",                                                                           "1",
-  "(Tisler et al., 2021)",                     0.3,                         0.05,                     17,                "67 compounds: wastewater-relevant pharmaceuticals, pesticides, fungicides, industrial chemicals",    "0.2"
-)
-
-# Render table with caption
-kable(
-  literature_table,
-  format = "html",
-  caption = "Table SI-3. Overview of flow rates, analytes, and analyte concentrations used for PCI experiments in literature."
-) %>%
-  kable_styling(full_width = FALSE)
-
 ```
 
 ## Change in Standard Names using Refmet
