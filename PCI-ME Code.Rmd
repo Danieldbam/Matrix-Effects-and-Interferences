@@ -6703,13 +6703,21 @@ print(solvent_leucine)
 ggsave(
   filename = file.path(output_dir, "Figure_SI-3.png"),
   plot = solvent_leucine,
+<<<<<<< HEAD
   width = 20, height = 10, units = "cm", dpi = 1000
+=======
+  width = 20, height = 15, units = "cm", dpi = 1000
+>>>>>>> 25f78d9b95e949ec25b61af96a57f4fbb439ef18
 )
 
 ggsave(
   filename = file.path(output_dir, "Figure_SI-3.tiff"),
   plot = solvent_leucine,
+<<<<<<< HEAD
   width = 20, height = 10, units = "cm",
+=======
+  width = 20, height = 15, units = "cm",
+>>>>>>> 25f78d9b95e949ec25b61af96a57f4fbb439ef18
   dpi = 1000, device = "tiff", compression = "lzw"
 )
 
