@@ -1431,8 +1431,12 @@ ggsave(
 # ---- Data prep: build merged_df used by Figure 3 and the negative-mode summary ----
 Sup_info <- here("Data","Supplementary Tables.xlsx")
 
+<<<<<<< HEAD
 data3 <- read_excel(Sup_info, sheet = "Table SI-5",
   skip = 1) 
+=======
+data3<- data3 <- read_excel(Sup_info, sheet = "Table SI-5")
+>>>>>>> bcc2fd54737970cabe4e345ed0756d4b575907df
 
 peak_table1 <- data3 %>%
   select(id, mz, rt) %>%  
@@ -3710,9 +3714,15 @@ signal.factor <- 3
 
 
 Sup_info <- here("Data","Supplementary Tables.xlsx")
+<<<<<<< HEAD
 data4 <- read_excel(Sup_info, sheet = "Table SI-6", skip = 1)
 
 data_meta <- read_excel(Sup_info, sheet = "Table SI-5", skip = 1) %>%
+=======
+data4 <- read_excel(Sup_info, sheet = "Table SI-6")
+
+data_meta <- read_excel(Sup_info, sheet = "Table SI-5") %>%
+>>>>>>> bcc2fd54737970cabe4e345ed0756d4b575907df
   mutate(
     Charge = case_when(
       Polarity == "POS" ~ 1,
@@ -4997,7 +5007,11 @@ Sup_info <- here("Data", "Supplementary Tables.xlsx")
 
 data4 <- read_excel(Sup_info, sheet = "Table SI-6", skip = 1)
 
+<<<<<<< HEAD
 data_meta <- read_excel(Sup_info, sheet = "Table SI-5", skip = 1) %>%
+=======
+data_meta <- read_excel(Sup_info, sheet = "Table SI-5") %>%
+>>>>>>> bcc2fd54737970cabe4e345ed0756d4b575907df
   mutate(
     Charge = case_when(
       Polarity == "POS" ~ 1,
