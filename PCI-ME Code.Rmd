@@ -367,7 +367,7 @@ data_time <- data2 %>%
     )
   )
 
-combined_data <- data2 %>%
+combined_data_pci <- data2 %>%
   select(-Intensities, -Times) %>%
   distinct() %>%
   left_join(
@@ -379,7 +379,7 @@ combined_data <- data2 %>%
     by = c("Chromatograms", "Compound", "Charge", "Adduct")
   )
 
-long_data <- combined_data %>%
+long_data <- combined_data_pci %>%
   pivot_longer(
     cols = c(starts_with("Times"), starts_with("Intensities")),
     names_to = c(".value", "Scan"),
@@ -1497,7 +1497,7 @@ merged_df <- difference_left_join(
       rt = round(rt, 2)   
     ) %>%
     select(
-      mz, rt, Formula, "Annotation level", Name, Adduct, MS2,
+      mz, rt, Formula, "Annotation level", "Name (RefMet Update)", Adduct, MS2,
       Polarity,
       #identifier,
       #"Compound #",
@@ -2394,13 +2394,19 @@ data_time <- data5 %>%
   mutate(across(3:ncol(.), ~ as.numeric(gsub(",", ".", .))))
 
 
-combined_data <- data5 %>%
-  select(-Intensities,-Times) %>%
-  right_join(data_time, by = c("Chromatograms","Compound")) %>%
-  right_join(data_intensity, by = c("Chromatograms","Compound"))
+combined_data_dilu <- data5 %>%
+  select(-Intensities, -Times) %>%
+  right_join(
+    data_time,
+    by = c("Chromatograms", "Compound")
+  ) %>%
+  right_join(
+    data_intensity,
+    by = c("Chromatograms", "Compound")
+  )
 
 
-long_data_dilu <- combined_data %>%
+long_data_dilu <- combined_data_dilu %>%
   filter(Date == "241009",
          Compound %in% c(
            #"Indole-d6",
@@ -3804,7 +3810,7 @@ rsd_per_wash <- nist_data %>%
     by = "Feature"
   ) %>%
   left_join(
-    data_meta %>% select(`id`, Name, rt, mz, Adduct, Charge),
+    data_meta %>% select(`id`, "Name (RefMet Update)", rt, mz, Adduct, Charge),
     by = c("Feature" = "id")
   ) %>%
   filter(Charge == 1)
@@ -4888,7 +4894,7 @@ Extracting new negative
 ```{r negative-mode-setup}
 #Similar to long_data but for neg
 
-long_data2 <- combined_data %>%
+long_data2 <- combined_data_pci %>%
   pivot_longer(
     cols = c(starts_with("Times"), starts_with("Intensities")),
     names_to = c(".value", "Scan"),
@@ -4898,12 +4904,26 @@ long_data2 <- combined_data %>%
     Scan = as.numeric(Scan),
     Intensities = if_else(Intensities == 0, 1, Intensities)
   ) %>%
-  filter(Times >= 0, Times <= 15) %>%
-  group_by(Chromatograms, Compound, Charge, Adduct) %>%
-  mutate(
-    Average = zoo::rollmean(Intensities, k = 5, fill = NA, align = "left")
+  filter(
+    Times >= 0,
+    Times <= 15
   ) %>%
-  filter( Charge == -1) %>%
+  group_by(
+    Chromatograms,
+    Compound,
+    Charge,
+    Adduct
+  ) %>%
+  arrange(Scan, .by_group = TRUE) %>%
+  mutate(
+    Average = zoo::rollmean(
+      Intensities,
+      k = 5,
+      fill = NA,
+      align = "left"
+    )
+  ) %>%
+  filter(Charge == -1) %>%
   ungroup()
 ```
 
@@ -5060,7 +5080,7 @@ rsd_per_wash_neg <- nist_data %>%
   ) %>%
   left_join(
     data_meta %>%
-      select(id, Name, rt, mz, Adduct, Charge),
+      select(id, "Name (RefMet Update)", rt, mz, Adduct, Charge),
     by = c("Feature" = "id")
   ) %>%
   filter(Charge == -1)
@@ -6293,9 +6313,9 @@ Figure_SI.1 <- ggplot() +
   annotate("text",
            x = 4.4,
            y = max(Pressure_data_filtered$Scaled_Pressure, na.rm = TRUE) + 0.00,
-           label = "Pressure Curve",
+           label = "Pressure curve",
            color = "black",
-           size = 4.5,
+           size = 3.5,
            hjust = 0.5) +
   labs(
     x = "Time (min)",
@@ -6808,8 +6828,8 @@ SI.All_pos <- ggplot(summary_table_F_pos, aes(x = avg_time)) +
   theme_minimal(base_size = 14) +
   theme(
     legend.position = "none",
-    strip.text = element_text(size = 9),
-    strip.text.y = element_text(angle = 0),
+    strip.text = element_text(size = 8),
+    strip.text.y = element_text(size = 8, angle = 0),
     panel.grid = element_blank(),
     axis.line = element_line(color = "black"),
     axis.ticks = element_line(color = "black"),
@@ -7001,8 +7021,8 @@ SI.All_Neg <- ggplot(summary_table_F, aes(x = avg_time)) +
   theme_minimal(base_size = 14) +
   theme(
     legend.position = "none",
-    strip.text = element_text(size = 10),
-    strip.text.y = element_text(angle = 0),
+    strip.text = element_text(size = 8),
+    strip.text.y = element_text(size = 8, angle = 0),
     panel.grid = element_blank(),
     axis.line = element_line(color = "black"),
     axis.ticks = element_line(color = "black"),
@@ -10856,7 +10876,10 @@ WC_plot_df_pos <- val_best_worsened_pos %>%
 # ============================================================
 
 df_worsened_mean_neg <- rsd_delta_rt_neg %>%
-  filter(Category == "Worsened") %>%
+  filter(
+    Type == "Best mean/uncorrected",
+    Category == "Worsened"
+  ) %>%
   select(Feature, RT_min) %>%
   distinct()
 
