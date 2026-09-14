@@ -1431,12 +1431,9 @@ ggsave(
 # ---- Data prep: build merged_df used by Figure 3 and the negative-mode summary ----
 Sup_info <- here("Data","Supplementary Tables.xlsx")
 
-<<<<<<< HEAD
+
 data3 <- read_excel(Sup_info, sheet = "Table SI-5",
   skip = 1) 
-=======
-data3<- data3 <- read_excel(Sup_info, sheet = "Table SI-5")
->>>>>>> bcc2fd54737970cabe4e345ed0756d4b575907df
 
 peak_table1 <- data3 %>%
   select(id, mz, rt) %>%  
@@ -3714,15 +3711,11 @@ signal.factor <- 3
 
 
 Sup_info <- here("Data","Supplementary Tables.xlsx")
-<<<<<<< HEAD
+
 data4 <- read_excel(Sup_info, sheet = "Table SI-6", skip = 1)
 
 data_meta <- read_excel(Sup_info, sheet = "Table SI-5", skip = 1) %>%
-=======
-data4 <- read_excel(Sup_info, sheet = "Table SI-6")
 
-data_meta <- read_excel(Sup_info, sheet = "Table SI-5") %>%
->>>>>>> bcc2fd54737970cabe4e345ed0756d4b575907df
   mutate(
     Charge = case_when(
       Polarity == "POS" ~ 1,
@@ -5007,11 +5000,8 @@ Sup_info <- here("Data", "Supplementary Tables.xlsx")
 
 data4 <- read_excel(Sup_info, sheet = "Table SI-6", skip = 1)
 
-<<<<<<< HEAD
 data_meta <- read_excel(Sup_info, sheet = "Table SI-5", skip = 1) %>%
-=======
-data_meta <- read_excel(Sup_info, sheet = "Table SI-5") %>%
->>>>>>> bcc2fd54737970cabe4e345ed0756d4b575907df
+
   mutate(
     Charge = case_when(
       Polarity == "POS" ~ 1,
@@ -6703,21 +6693,14 @@ print(solvent_leucine)
 ggsave(
   filename = file.path(output_dir, "Figure_SI-3.png"),
   plot = solvent_leucine,
-<<<<<<< HEAD
   width = 20, height = 10, units = "cm", dpi = 1000
-=======
-  width = 20, height = 15, units = "cm", dpi = 1000
->>>>>>> 25f78d9b95e949ec25b61af96a57f4fbb439ef18
+
 )
 
 ggsave(
   filename = file.path(output_dir, "Figure_SI-3.tiff"),
   plot = solvent_leucine,
-<<<<<<< HEAD
   width = 20, height = 10, units = "cm",
-=======
-  width = 20, height = 15, units = "cm",
->>>>>>> 25f78d9b95e949ec25b61af96a57f4fbb439ef18
   dpi = 1000, device = "tiff", compression = "lzw"
 )
 
