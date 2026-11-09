@@ -12,7 +12,7 @@ editor_options:
 This document reproduces every figure and supplementary item in the manuscript. It is organized in reading order:
 
 1.  **Main Figures** (Figure 1-7)
-2.  **Supplementary Figures** (Figure SI-1 - SI-20)
+2.  **Supplementary Figures** (Figure SI-1 - SI-23)
 
 Each figure follows the same workflow: **extract the data -\> make the plot(s) -\> combine panels if needed -\> export as PNG and TIFF**.
 
@@ -57,6 +57,9 @@ Each figure follows the same workflow: **extract the data -\> make the plot(s) -
     -   Figure SI-18. RSD change versus retention time
     -   Figure SI-19. Improved and worsened features
     -   Figure SI-20. Individual worsened features
+    -   Figure SI-21. Spike recovery and matrix effect
+    -   Figure SI-22. Bias relative to PPT, compounds confirmed by reference standards
+    -   Figure SI-23. Bias relative to PPT, all corrected features
 
 ### Reproducibility
 
@@ -11124,14 +11127,539 @@ ggsave(
 )
 ```
 
+## Figure SI-21. Spike Recovery
+
+```{r figure-si-21-setup}
+# ============================================================
+# Figure SI-21. Spike recovery and matrix effect after PLR
+# Data from Table SI-10 (Supplementary Tables)
+#Water recovery for all compounds; plasma recovery and matrix effect
+
+# ============================================================
+# 1. Load Table SI-10
+# ============================================================
+
+table_si10 <- read_excel(
+  Sup_info,
+  sheet = "Table SI-10",
+  skip = 3,
+  col_names = c(
+    "Compound", "Class", "RT", "Region", "Spike_ratio", "Tier",
+    "RE_water", "RE_water_SE", "RE_plasma", "RE_plasma_SE", "ME", "ME_SE"
+  )
+)
+
+# ============================================================
+# 2. Long format: one row per compound and measure
+# ============================================================
+
+recovery_long <- bind_rows(
+  table_si10 %>%
+    transmute(Compound, Region, Measure = "Recovery, water",
+              Value = RE_water, SE = RE_water_SE),
+  table_si10 %>%
+    transmute(Compound, Region, Measure = "Recovery, plasma",
+              Value = RE_plasma, SE = RE_plasma_SE),
+  table_si10 %>%
+    transmute(Compound, Region, Measure = "Matrix effect",
+              Value = ME, SE = ME_SE)
+) %>%
+  filter(!is.na(Value)) %>%
+  mutate(
+    Measure = factor(
+      Measure,
+      levels = c("Recovery, water", "Recovery, plasma", "Matrix effect")
+    ),
+    # Table rows are ordered by retention time; first compound on top
+    Compound = factor(Compound, levels = rev(table_si10$Compound)),
+    Region = factor(Region, levels = c("Dead volume", "Retained"))
+  )
+
+# ============================================================
+# 3. Plot
+# ============================================================
+
+Figure.SI.21 <- ggplot(
+  recovery_long,
+  aes(
+    x = Value,
+    y = Compound,
+    color = Region
+  )
+) +
+  annotate(
+    "rect",
+    xmin = 80, xmax = 120,
+    ymin = -Inf, ymax = Inf,
+    alpha = 0.12, fill = "grey50"
+  ) +
+  geom_vline(xintercept = 100, linetype = "dashed", color = "grey40") +
+  geom_errorbar(
+    aes(xmin = Value - SE, xmax = Value + SE),
+    orientation = "y", width = 0, alpha = 0.5
+  ) +
+  geom_point(size = 2.2) +
+  facet_wrap(~ Measure, nrow = 1) +
+  scale_color_manual(
+    values = c("Dead volume" = "#C0392B", "Retained" = "#2471A3")
+  ) +
+  scale_x_continuous(limits = c(0, 200), breaks = seq(0, 200, by = 50)) +
+  labs(
+    x = "% (mean ± SE, n = 3)",
+    y = NULL,
+    color = NULL
+  ) +
+  theme_bw(base_size = 11) +
+  theme(
+    legend.position = "bottom",
+    text = element_text(size = 11),
+    axis.text = element_text(size = 11, color = "black"),
+    strip.text = element_text(size = 11),
+    legend.text = element_text(size = 11),
+    panel.spacing.x = unit(1, "lines"),
+    panel.grid.minor = element_blank()
+  )
+
+Figure.SI.21
+
+# ============================================================
+# 4. Save PNG
+# ============================================================
+
+ggsave(
+  filename = file.path(
+    output_dir,
+    "Figure_SI-21.png"
+  ),
+  plot = Figure.SI.21,
+  width = 24,
+  height = 25.4,
+  units = "cm",
+  dpi = 1000
+)
+
+# ============================================================
+# 5. Save TIFF
+# ============================================================
+
+ggsave(
+  filename = file.path(
+    output_dir,
+    "Figure_SI-21.tiff"
+  ),
+  plot = Figure.SI.21,
+  width = 24,
+  height = 25.4,
+  units = "cm",
+  dpi = 1000,
+  device = "tiff",
+  compression = "lzw"
+)
+```
+
+## Figure SI-22. Bias vs PPT, reference
+
+```{r figure-si-22-setup}
+# ============================================================
+# Figure SI-22. Bias relative to PPT, before and after correction
+# Compounds confirmed by reference standards (validation samples)
+# Data from Tables SI-8 and SI-9 (Supplementary Tables)
+# ============================================================
+
+# ============================================================
+# 1. Settings
+# ============================================================
+
+# Validation replicate per treatment from the training/validation split
+# of Figure 7 (validation_ids, set.seed(1))
+validation_lookup <- validation_ids %>%
+  transmute(
+    Wash = as.character(Treatment),
+    Replicate = as.numeric(as.character(Replicate)),
+    Set
+  )
+
+treatment_labels <- c(
+  PPT    = "PPT",
+  NoWash = "PLR unwashed",
+  `04x`  = "PLR 4x",
+  `08x`  = "PLR 8x",
+  `22x`  = "PLR 22x"
+)
+
+# Features confirmed by reference standards (accurate mass ±5 ppm, RT ±0.1 min)
+reference_features <- tribble(
+  ~Feature, ~Polarity, ~Compound,
+  "X00075", "POS", "1-/3-Methylhistidine",
+  "X00093", "POS", "Acetyl-L-carnitine",
+  "X00228", "POS", "Carnitine C3:0",
+  "X00185", "POS", "Carnitine C4:0",
+  "X00157", "POS", "Carnitine isoC5:0",
+  "X00048", "POS", "Creatinine",
+  "X00167", "NEG", "Hexose",
+  "X01283", "POS", "Glycocholic acid",
+  "X00067", "POS", "L-Arginine",
+  "X00011", "POS", "L-Carnitine",
+  "X00212", "POS", "L-Histidine",
+  "X00133", "POS", "L-Leucine",
+  "X00633", "POS", "L-Lysine",
+  "X00169", "POS", "L-Methionine",
+  "X00082", "POS", "L-Phenylalanine",
+  "X00081", "POS", "L-Proline",
+  "X00574", "POS", "L-Threonine",
+  "X00085", "POS", "L-Tryptophan",
+  "X00142", "POS", "L-Tyrosine",
+  "X00895", "NEG", "Tauro(cheno)deoxycholic acid",
+  "X00179", "NEG", "Uridine"
+)
+
+pci_names <- c(
+  "Tryptophan-d5"   = "tryptophan-d5",
+  "Carnitine-d9"    = "carnitine-d9",
+  "Leucine-d10"     = "leucine-d10",
+  "Glucose-13C6"    = "glucose-\u00b9\u00b3C\u2086",
+  "StearicAcid-d35" = "stearic acid-d35",
+  "Indole-d6"       = "indole-d6"
+)
+
+# ============================================================
+# 2. Load Tables SI-8 and SI-9
+# ============================================================
+
+si9 <- read_excel(Sup_info, sheet = "Table SI-9", skip = 1)
+
+si8_mean <- read_excel(Sup_info, sheet = "Table SI-8", skip = 1) %>%
+  filter(Correction_strategy == "Best mean/uncorrected") %>%
+  select(Polarity, Feature, Applied_correction, Applied_PCI_SILS)
+
+# ============================================================
+# 3. Uncorrected and corrected area per sample
+#    (selected PCI-SILS; uncorrected features keep their area)
+# ============================================================
+
+reference_areas <- si9 %>%
+  inner_join(reference_features, by = c("Feature", "Polarity")) %>%
+  left_join(si8_mean, by = c("Polarity", "Feature")) %>%
+    filter(is.na(Applied_PCI_SILS) | PCI == Applied_PCI_SILS) %>%
+  group_by(Feature, Polarity, Wash, Replicate) %>%
+  dplyr::slice(1) %>%
+  ungroup() %>%
+  mutate(
+    Corrected = ifelse(Applied_correction == "uncorrected", uncorrected, corrected_mean),
+     Treatment = factor(treatment_labels[Wash], levels = treatment_labels)
+  ) %>%
+  left_join(validation_lookup, by = c("Wash", "Replicate")) %>%
+  mutate(Set = coalesce(Set, "Training")) %>%
+  filter(Applied_correction != "uncorrected")       # 19 corrected compounds
+
+# ============================================================
+# 4. Bias relative to the PPT mean of the same version
+#    (PPT corrected in the same way as the PLR samples)
+# ============================================================
+
+reference_bias <- reference_areas %>%
+  select(Compound, Feature, rt, Applied_PCI_SILS, Treatment, Set,
+         Uncorrected = uncorrected, Corrected) %>%
+  pivot_longer(c(Uncorrected, Corrected), names_to = "Type", values_to = "Area") %>%
+  group_by(Compound, Type) %>%
+  mutate(Bias = 100 * (Area / mean(Area[Treatment == "PPT"]) - 1)) %>%
+  ungroup() %>%
+  filter(Set == "Validation", Treatment != "PPT") %>%
+  mutate(
+    Type = factor(Type, levels = c("Uncorrected", "Corrected")),
+    Bias_plot = pmax(pmin(Bias, 105), -100),
+    # Facet label: compound / feature and RT / PCI-SILS, ordered by RT
+    Label = sprintf("%s\n%s | RT %.2f min\nPCI-SILS: %s",
+                    Compound, Feature, rt, pci_names[Applied_PCI_SILS]),
+    Label = fct_reorder(Label, rt)
+  )
+
+# Mean absolute bias of the four PLR validation samples per compound
+reference_mean_bias <- reference_bias %>%
+  group_by(Label, Compound, Type) %>%
+  summarise(Mean_abs_bias = mean(abs(Bias)), .groups = "drop") %>%
+  pivot_wider(names_from = Type, values_from = Mean_abs_bias)
+
+# ============================================================
+# 5. Paired two-sided Wilcoxon signed-rank test (exact)
+# ============================================================
+
+reference_wilcox <- wilcox.test(
+  reference_mean_bias$Uncorrected,
+  reference_mean_bias$Corrected,
+  paired = TRUE,
+  exact = TRUE
+)
+
+cat(sprintf(
+  "Figure SI-22: %d compounds; median bias %.1f%% -> %.1f%%; p = %.4f\n",
+  nrow(reference_mean_bias),
+  median(reference_mean_bias$Uncorrected),
+  median(reference_mean_bias$Corrected),
+  reference_wilcox$p.value
+))
+
+# ============================================================
+# 6. Plot
+# ============================================================
+
+Figure.SI.22 <- ggplot(
+  reference_bias,
+  aes(
+    x = Treatment,
+    y = Bias_plot,
+    color = Type
+  )
+) +
+  annotate(
+    "rect",
+    xmin = -Inf, xmax = Inf,
+    ymin = -20, ymax = 20,
+    alpha = 0.12, fill = "grey50"
+  ) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
+  geom_linerange(
+    aes(ymin = 0, ymax = Bias_plot),
+    position = position_dodge(0.5),
+    linewidth = 0.6, alpha = 0.7, show.legend = FALSE
+  ) +
+  geom_point(position = position_dodge(0.5), size = 2.5, shape = 18) +
+  geom_text(
+    data = reference_mean_bias,
+    aes(
+      x = 0.55, y = 155,
+      label = sprintf("Mean |bias| %.1f%% \u2192 %.1f%%", Uncorrected, Corrected)
+    ),
+    inherit.aes = FALSE, hjust = 0, vjust = 1, size = 3.5
+  ) +
+  facet_wrap(~ Label, ncol = 4) +
+  scale_color_manual(
+    values = c("Uncorrected" = "#C0392B", "Corrected" = "#2471A3")
+  ) +
+  scale_x_discrete(limits = rev(unname(treatment_labels[-1]))) +
+  coord_cartesian(ylim = c(-100, 155)) +
+  labs(
+    x = NULL,
+    y = "Relative bias vs PPT (%)",
+    color = NULL
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "bottom",
+    strip.text = element_text(size = 10),
+    panel.grid.minor = element_blank()
+  )
+
+Figure.SI.22
+
+# ============================================================
+# 7. Save PNG
+# ============================================================
+
+ggsave(
+  filename = file.path(
+    output_dir,
+    "Figure_SI-22.png"
+  ),
+  plot = Figure.SI.22,
+  width = 26.7,
+  height = 35,
+  units = "cm",
+  dpi = 1000
+)
+
+# ============================================================
+# 8. Save TIFF
+# ============================================================
+
+ggsave(
+  filename = file.path(
+    output_dir,
+    "Figure_SI-22.tiff"
+  ),
+  plot = Figure.SI.22,
+  width = 26.7,
+  height = 35,
+  units = "cm",
+  dpi = 1000,
+  device = "tiff",
+  compression = "lzw"
+)
+```
+
+## Figure SI-23. Bias vs PPT, all features
+
+```{r figure-si-23-setup}
+# ============================================================
+# Figure SI-23. Bias relative to PPT, before and after correction
+# All features corrected by the PCI-SILS workflow (validation samples)
+# Data from Tables SI-8 and SI-9 (loaded for Figure SI-22)
+# ============================================================
+# 1. Uncorrected and corrected area per sample
+#    (selected PCI-SILS, corrected features only)
+# ============================================================
+
+corrected_features <- si8_mean %>%
+  filter(Applied_correction != "uncorrected")       # 396 corrected features
+
+feature_areas <- si9 %>%
+  inner_join(
+    corrected_features,
+    by = c("Polarity", "Feature", "PCI" = "Applied_PCI_SILS")
+  ) %>%
+    distinct(Polarity, Feature, Wash, Replicate, .keep_all = TRUE) %>%
+  left_join(validation_lookup, by = c("Wash", "Replicate")) %>%
+  transmute(
+    Polarity, Feature, Wash,
+    Set = coalesce(Set, "Training"),
+    Uncorrected = uncorrected,
+    Corrected = corrected_mean
+  )
+
+# ============================================================
+# 2. Mean absolute bias of the four PLR validation samples
+#    vs the PPT mean of the same version
+#    (PPT corrected in the same way as the PLR samples)
+# ============================================================
+
+feature_bias <- feature_areas %>%
+  pivot_longer(c(Uncorrected, Corrected), names_to = "Group", values_to = "Area") %>%
+  group_by(Polarity, Feature, Group) %>%
+  summarise(
+    Bias = mean(abs(100 * (
+      Area[Set == "Validation" & Wash != "PPT"] / mean(Area[Wash == "PPT"]) - 1
+    ))),
+    .groups = "drop"
+  ) %>%
+  mutate(Group = factor(Group, levels = c("Uncorrected", "Corrected")))
+
+# ============================================================
+# 3. Paired two-sided Wilcoxon signed-rank test
+# ============================================================
+
+feature_bias_wide <- feature_bias %>%
+  pivot_wider(names_from = Group, values_from = Bias)
+
+feature_wilcox <- wilcox.test(
+  feature_bias_wide$Uncorrected,
+  feature_bias_wide$Corrected,
+  paired = TRUE,
+  exact = FALSE
+)
+
+median_bias <- feature_bias %>%
+  group_by(Group) %>%
+  summarise(Median = median(Bias))
+
+cat(sprintf(
+  "Figure SI-23: %d features; median bias %.1f%% -> %.1f%%; p = %.1e\n",
+  nrow(feature_bias_wide),
+  median_bias$Median[1],
+  median_bias$Median[2],
+  feature_wilcox$p.value
+))
+
+# ============================================================
+# 4. Plot (same layout as the RSD histograms of Figure 7)
+# ============================================================
+
+Figure.SI.23 <- ggplot(
+  feature_bias,
+  aes(
+    x = pmin(Bias, 100),
+    fill = Group
+  )
+) +
+  geom_histogram(
+    bins = 30,
+    position = "identity",
+    alpha = 0.5,
+    color = "black",
+    linewidth = 0.3
+  ) +
+  geom_vline(
+    xintercept = median_bias$Median[1],
+    linetype = "dashed", color = "#e31a1c", linewidth = 1
+  ) +
+  geom_vline(
+    xintercept = median_bias$Median[2],
+    linetype = "dashed", color = "#1f78b4", linewidth = 1
+  ) +
+  annotate(
+    "text", x = Inf, y = Inf, hjust = 1, vjust = 1.5,
+    label = sprintf("Median uncorrected bias = %.1f%%", median_bias$Median[1]),
+    color = "#e31a1c", size = 4, fontface = "bold"
+  ) +
+  annotate(
+    "text", x = Inf, y = Inf, hjust = 1, vjust = 3,
+    label = sprintf("Median corrected bias = %.1f%%", median_bias$Median[2]),
+    color = "#1f78b4", size = 4, fontface = "bold"
+  ) +
+  annotate(
+    "text", x = Inf, y = Inf, hjust = 1, vjust = 4.5,
+    label = paste0("p-value = ", formatC(feature_wilcox$p.value, format = "e", digits = 1)),
+    size = 4, fontface = "bold"
+  ) +
+  scale_fill_manual(
+    values = c("Uncorrected" = "#e31a1c", "Corrected" = "#1f78b4")
+  ) +
+  scale_x_continuous(
+    breaks = seq(0, 100, by = 20),
+    expand = expansion(mult = c(0.02, 0.05))
+  ) +
+  labs(
+    x = "Mean |bias| of PLR validation samples vs PPT (%)",
+    y = "Number of Features",
+    fill = NULL
+  ) +
+  theme_bw(base_size = 12)
+
+Figure.SI.23
+
+# ============================================================
+# 5. Save PNG
+# ============================================================
+
+ggsave(
+  filename = file.path(
+    output_dir,
+    "Figure_SI-23.png"
+  ),
+  plot = Figure.SI.23,
+  width = 20.3,
+  height = 12.7,
+  units = "cm",
+  dpi = 1000
+)
+
+# ============================================================
+# 6. Save TIFF
+# ============================================================
+
+ggsave(
+  filename = file.path(
+    output_dir,
+    "Figure_SI-23.tiff"
+  ),
+  plot = Figure.SI.23,
+  width = 20.3,
+  height = 12.7,
+  units = "cm",
+  dpi = 1000,
+  device = "tiff",
+  compression = "lzw"
+)
+```
+
 ## Change in Standard Names using Refmet
 
-```{r}
+```{r refmet-name-check}
 # ============================================================
 # OPTIONAL RefMet name / InChIKey cross-check
 # ============================================================
 # FALSE skips all imports, online requests, and exports in this block.
-# TRUE sends the feature names to the RefMet endpoint used in your original code.
+# TRUE sends the feature names to the RefMet name-matching service.
 # This block does not write back to Supplementary Tables.xlsx.
 
 run_refmet_check <- FALSE
