@@ -11309,7 +11309,7 @@ reference_features <- tribble(
   "X00574", "POS", "L-Threonine",
   "X00085", "POS", "L-Tryptophan",
   "X00142", "POS", "L-Tyrosine",
-  "X00895", "NEG", "Tauro(cheno)deoxycholic acid",
+  "X00895", "NEG", "Taurochenodeoxycholic acid",
   "X00179", "NEG", "Uridine"
 )
 
