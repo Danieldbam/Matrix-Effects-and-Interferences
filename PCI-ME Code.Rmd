@@ -11287,7 +11287,7 @@ treatment_labels <- c(
   `22x`  = "PLR 22x"
 )
 
-# Features confirmed by reference standards (accurate mass ±5 ppm, RT ±0.1 min)
+# Features confirmed by reference standards (accurate mass ±3 ppm, RT ±0.1 min)
 reference_features <- tribble(
   ~Feature, ~Polarity, ~Compound,
   "X00075", "POS", "3-Methylhistidine",
@@ -11314,12 +11314,12 @@ reference_features <- tribble(
 )
 
 pci_names <- c(
-  "Tryptophan-d5"   = "tryptophan-d5",
-  "Carnitine-d9"    = "carnitine-d9",
-  "Leucine-d10"     = "leucine-d10",
+  "Tryptophan-d5"   = "tryptophan-d\u2085",
+  "Carnitine-d9"    = "carnitine-d\u2089",
+  "Leucine-d10"     = "leucine-d\u2081\u2080",
   "Glucose-13C6"    = "glucose-\u00b9\u00b3C\u2086",
-  "StearicAcid-d35" = "stearic acid-d35",
-  "Indole-d6"       = "indole-d6"
+  "StearicAcid-d35" = "stearic acid-d\u2083\u2085",
+  "Indole-d6"       = "indole-d\u2086"
 )
 
 # ============================================================
