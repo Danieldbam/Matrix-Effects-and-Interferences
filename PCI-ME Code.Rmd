@@ -11290,7 +11290,7 @@ treatment_labels <- c(
 # Features confirmed by reference standards (accurate mass ±5 ppm, RT ±0.1 min)
 reference_features <- tribble(
   ~Feature, ~Polarity, ~Compound,
-  "X00075", "POS", "1-/3-Methylhistidine",
+  "X00075", "POS", "3-Methylhistidine",
   "X00093", "POS", "Acetyl-L-carnitine",
   "X00228", "POS", "Carnitine C3:0",
   "X00185", "POS", "Carnitine C4:0",
@@ -11309,7 +11309,7 @@ reference_features <- tribble(
   "X00574", "POS", "L-Threonine",
   "X00085", "POS", "L-Tryptophan",
   "X00142", "POS", "L-Tyrosine",
-  "X00895", "NEG", "Tauro(cheno)deoxycholic acid",
+  "X00895", "NEG", "Taurochenodeoxycholic acid",
   "X00179", "NEG", "Uridine"
 )
 
